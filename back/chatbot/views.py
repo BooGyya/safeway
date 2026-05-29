@@ -137,3 +137,60 @@ def filter_content(request):
         return Response(result)
     except Exception:
         return Response({'is_inappropriate': False, 'reason': '파싱 실패'})
+    
+
+
+# ============================================================
+# 관리자 기능
+# ============================================================
+from config.permissions import IsAdminUser
+
+
+# 관리자 - LLM 필터링 모니터링
+@api_view(['POST'])
+@permission_classes([IsAdminUser])
+def admin_filter_monitor(request):
+    """게시글 목록 일괄 필터링"""
+    from community.models import Post
+
+    posts = Post.objects.filter(is_trusted=False).order_by('-created_at')[:50]
+
+    results = []
+    for post in posts:
+        content = f"제목: {post.title}\n내용: {post.content}"
+        system_prompt = "당신은 콘텐츠 필터링 전문가입니다. 반드시 JSON 형식으로만 응답하세요."
+        messages = [{
+            'role': 'user',
+            'content': f"""다음 텍스트에 욕설, 혐오, 비방, 선정적 표현이 포함되어 있는지 확인해주세요.
+
+텍스트: {content}
+
+반드시 아래 JSON 형식으로만 응답하세요.
+{{"is_inappropriate": true/false, "reason": "이유"}}"""
+        }]
+
+        response_text = call_gms(messages, system_prompt)
+
+        try:
+            import json
+            clean = response_text.strip()
+            if '```' in clean:
+                clean = clean.split('```')[1]
+                if clean.startswith('json'):
+                    clean = clean[4:]
+            result = json.loads(clean.strip())
+            results.append({
+                'post_id': post.id,
+                'title': post.title,
+                'is_inappropriate': result.get('is_inappropriate', False),
+                'reason': result.get('reason', ''),
+            })
+        except Exception:
+            results.append({
+                'post_id': post.id,
+                'title': post.title,
+                'is_inappropriate': False,
+                'reason': '파싱 실패',
+            })
+
+    return Response(results)

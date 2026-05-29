@@ -167,3 +167,72 @@ def follow_list(request):
         'following': FollowSerializer(following, many=True).data,
         'followers': FollowSerializer(followers, many=True).data,
     })
+
+# ==========================
+# 관리자 기능
+# ==========================
+from config.permissions import IsAdminUser
+
+
+# 관리자 - 전체 게시글 목록 조회
+@api_view(['GET'])
+@permission_classes([IsAdminUser])
+def admin_post_list(request):
+    posts = Post.objects.all().order_by('-created_at')
+    serializer = PostDetailSerializer(posts, many=True, context={'request': request})
+    return Response(serializer.data)
+
+
+# 관리자 - 게시글 강제 삭제
+@api_view(['DELETE'])
+@permission_classes([IsAdminUser])
+def admin_post_delete(request, post_id):
+    post = get_object_or_404(Post, id=post_id)
+    post.delete()
+    return Response({'message': f'게시글 {post_id}번이 삭제되었습니다.'})
+
+
+# 관리자 - 신뢰도 점수 수정
+@api_view(['PATCH'])
+@permission_classes([IsAdminUser])
+def admin_post_reliability(request, post_id):
+    post = get_object_or_404(Post, id=post_id)
+    score = request.data.get('reliability_score')
+    is_trusted = request.data.get('is_trusted')
+
+    if score is not None:
+        post.reliability_score = score
+    if is_trusted is not None:
+        post.is_trusted = is_trusted
+
+    post.save()
+    serializer = PostSerializer(post, context={'request': request})
+    return Response(serializer.data)
+
+
+# 관리자 - 신뢰도 높은 제보자 랭킹
+@api_view(['GET'])
+@permission_classes([IsAdminUser])
+def admin_reporter_ranking(request):
+    from django.contrib.auth import get_user_model
+    from django.db.models import Count, Avg
+
+    User = get_user_model()
+
+    ranking = User.objects.annotate(
+        post_count=Count('posts'),
+        avg_reliability=Avg('posts__reliability_score'),
+        trusted_count=Count('posts', filter=__import__('django.db.models', fromlist=['Q']).Q(posts__is_trusted=True))
+    ).filter(post_count__gt=0).order_by('-avg_reliability', '-post_count')[:20]
+
+    result = [
+        {
+            'id': user.id,
+            'username': user.username,
+            'post_count': user.post_count,
+            'avg_reliability': round(user.avg_reliability or 0, 2),
+            'trusted_count': user.trusted_count,
+        }
+        for user in ranking
+    ]
+    return Response(result)
