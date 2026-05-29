@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     # Third party 
     'rest_framework',
     'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
 
     # Local
@@ -166,3 +167,7 @@ USE_TZ = True
 
 # 커스텀 유저 모델
 AUTH_USER_MODEL = 'accounts.User'
+
+# 미디어 파일
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
