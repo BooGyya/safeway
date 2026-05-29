@@ -168,9 +168,9 @@ def follow_list(request):
         'followers': FollowSerializer(followers, many=True).data,
     })
 
-# ==========================
+# ============================================================
 # 관리자 기능
-# ==========================
+# ============================================================
 from config.permissions import IsAdminUser
 
 
