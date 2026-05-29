@@ -163,3 +163,6 @@ LANGUAGE_CODE = 'ko-kr'
 TIME_ZONE = 'Asia/Seoul'
 USE_I18N = True
 USE_TZ = True
+
+# 커스텀 유저 모델
+AUTH_USER_MODEL = 'accounts.User'
