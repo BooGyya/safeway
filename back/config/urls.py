@@ -6,6 +6,7 @@ from django.conf.urls.static import static
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/accounts/', include('accounts.urls')),
+    path('api/community/', include('community.urls')),
 ]
 
 # 미디어 파일 (프로필 이미지)

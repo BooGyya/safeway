@@ -1,0 +1,71 @@
+from rest_framework import serializers
+from .models import Post, Comment, PostLike, Follow
+from django.conf import settings
+
+
+class CommentSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(source='user.username', read_only=True)
+
+    class Meta:
+        model = Comment
+        fields = [
+            'id', 'username', 'content',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'username', 'created_at', 'updated_at']
+
+
+class PostSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(source='user.username', read_only=True)
+    like_count = serializers.IntegerField(source='likes.count', read_only=True)
+    comment_count = serializers.IntegerField(source='comments.count', read_only=True)
+    is_liked = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Post
+        fields = [
+            'id', 'username', 'title', 'content',
+            'category', 'latitude', 'longitude', 'address',
+            'reliability_score', 'is_trusted', 'view_count',
+            'like_count', 'comment_count', 'is_liked',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = [
+            'id', 'username', 'reliability_score',
+            'is_trusted', 'view_count', 'created_at', 'updated_at'
+        ]
+
+    def get_is_liked(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return PostLike.objects.filter(
+                post=obj,
+                user=request.user
+            ).exists()
+        return False
+
+
+class PostDetailSerializer(PostSerializer):
+    comments = CommentSerializer(many=True, read_only=True)
+
+    class Meta(PostSerializer.Meta):
+        fields = PostSerializer.Meta.fields + ['comments']
+
+
+class FollowSerializer(serializers.ModelSerializer):
+    follower_username = serializers.CharField(
+        source='follower.username',
+        read_only=True
+    )
+    following_username = serializers.CharField(
+        source='following.username',
+        read_only=True
+    )
+
+    class Meta:
+        model = Follow
+        fields = [
+            'id', 'follower_username',
+            'following_username', 'created_at'
+        ]
+        read_only_fields = ['id', 'created_at']
