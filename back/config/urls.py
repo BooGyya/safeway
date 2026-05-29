@@ -9,6 +9,7 @@ urlpatterns = [
     path('api/community/', include('community.urls')),
     path('api/infrastructure/', include('infrastructure.urls')),
     path('api/routes/', include('routes.urls')),
+    path('api/chatbot/', include('chatbot.urls')),  # 추가
 ]
 
 # 미디어 파일 (프로필 이미지)
