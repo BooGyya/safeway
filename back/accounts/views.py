@@ -9,6 +9,8 @@ from .serializers import RegisterSerializer, UserSerializer, ChangePasswordSeria
 from django.conf import settings
 from solapi import SolapiMessageService
 from solapi.model import RequestMessage
+import requests as req
+from django.shortcuts import redirect
 
 # 회원가입
 @api_view(['POST'])
@@ -154,3 +156,73 @@ def send_sos(request):
             {'error': f'문자 발송에 실패했습니다: {str(e)}'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+    
+# 카카오 로그인 - 인가 코드 요청
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def kakao_login(request):
+    kakao_auth_url = "https://kauth.kakao.com/oauth/authorize"
+    redirect_uri = "http://127.0.0.1:8000/api/accounts/kakao/callback/"
+    client_id = settings.KAKAO_REST_API_KEY
+    
+    url = f"{kakao_auth_url}?client_id={client_id}&redirect_uri={redirect_uri}&response_type=code"
+    
+    return redirect(url)
+
+
+# 카카오 로그인 - 콜백
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def kakao_callback(request):
+    code = request.GET.get('code')
+    
+    if not code:
+        return Response({'error': '인가 코드가 없습니다.'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # 토큰 발급
+    token_url = "https://kauth.kakao.com/oauth/token"
+    token_data = {
+        'grant_type': 'authorization_code',
+        'client_id': settings.KAKAO_REST_API_KEY,
+        'redirect_uri': 'http://127.0.0.1:8000/api/accounts/kakao/callback/',
+        'code': code,
+    }
+    token_res = req.post(token_url, data=token_data)
+    token_json = token_res.json()
+    access_token = token_json.get('access_token')
+    
+    if not access_token:
+        return Response({'error': '토큰 발급 실패', 'detail': token_json}, status=status.HTTP_400_BAD_REQUEST)
+        
+    # 사용자 정보 조회
+    user_info_url = "https://kapi.kakao.com/v2/user/me"
+    user_info_res = req.get(
+        user_info_url,
+        headers={'Authorization': f'Bearer {access_token}'}
+    )
+    user_info = user_info_res.json()
+    
+    kakao_id = str(user_info.get('id'))
+    kakao_account = user_info.get('kakao_account', {})
+    email = kakao_account.get('email', f'{kakao_id}@kakao.com')
+    nickname = kakao_account.get('profile', {}).get('nickname', f'kakao_{kakao_id}')
+    
+    # 유저 생성 또는 조회
+    user, created = User.objects.get_or_create(
+        username=f'kakao_{kakao_id}',
+        defaults={'email': email}
+    )
+    
+    if created:
+        user.set_unusable_password()
+        user.save()
+    
+    # JWT 토큰 발급
+    refresh = RefreshToken.for_user(user)
+    
+    return Response({
+        'user': UserSerializer(user).data,
+        'refresh': str(refresh),
+        'access': str(refresh.access_token),
+        'created': created,
+    })
