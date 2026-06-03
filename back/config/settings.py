@@ -171,3 +171,8 @@ AUTH_USER_MODEL = 'accounts.User'
 # 미디어 파일
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+# CoolSMS
+COOLSMS_API_KEY = os.getenv('COOLSMS_API_KEY')
+COOLSMS_API_SECRET = os.getenv('COOLSMS_API_SECRET')
+COOLSMS_SENDER = os.getenv('COOLSMS_SENDER')

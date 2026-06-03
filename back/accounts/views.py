@@ -6,7 +6,9 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
 from .models import User
 from .serializers import RegisterSerializer, UserSerializer, ChangePasswordSerializer
-
+from django.conf import settings
+from solapi import SolapiMessageService
+from solapi.model import RequestMessage
 
 # 회원가입
 @api_view(['POST'])
@@ -103,3 +105,52 @@ def change_password(request):
 def delete_account(request):
     request.user.delete()
     return Response({'message': '회원 탈퇴가 완료되었습니다.'})
+
+
+
+# SOS 발신
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def send_sos(request):
+    user = request.user
+    
+    # 보호자 번호 확인
+    if not user.sos_number:
+        return Response(
+            {'error': '등록된 보호자 번호가 없습니다. 프로필에서 먼저 등록해주세요.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    # 위치 정보 받기 (프론트에서 전달)
+    latitude = request.data.get('latitude', '')
+    longitude = request.data.get('longitude', '')
+    message_text = request.data.get('message', '')
+    
+    # 기본 메시지
+    if not message_text:
+        message_text = f'[SafeWay SOS] {user.username}님이 도움을 요청합니다.'
+    
+    if latitude and longitude:
+        message_text += f'\n위치: https://maps.google.com/?q={latitude},{longitude}'
+    
+    try:
+        service = SolapiMessageService(
+            api_key=settings.COOLSMS_API_KEY,
+            api_secret=settings.COOLSMS_API_SECRET
+        )
+        
+        service.send(messages=[
+            RequestMessage(
+                to=user.sos_number,
+                from_=settings.COOLSMS_SENDER,
+                text=message_text,
+            )
+        ])
+        
+        return Response({'message': 'SOS 문자가 발송되었습니다.'})
+    
+    except Exception as e:
+        return Response(
+            {'error': f'문자 발송에 실패했습니다: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
