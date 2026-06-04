@@ -21,22 +21,31 @@ def get_distance(lat1, lng1, lat2, lng2):
     return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
 
-def get_kakao_route(origin_lat, origin_lng, dest_lat, dest_lng):
-    """카카오맵 도보 경로 탐색"""
-    API_KEY = os.getenv('KAKAO_REST_API_KEY')
-    url = 'https://apis-navi.kakaomobility.com/v1/directions'
+def get_tmap_route(origin_lat, origin_lng, dest_lat, dest_lng):
+    """TMAP 보행자 경로 탐색"""
+    API_KEY = os.getenv('TMAP_API_KEY')
+    url = 'https://apis.openapi.sk.com/tmap/routes/pedestrian'
 
-    headers = {'Authorization': f'KakaoAK {API_KEY}'}
-    params = {
-        'origin': f'{origin_lng},{origin_lat}',
-        'destination': f'{dest_lng},{dest_lat}',
-        'priority': 'RECOMMEND',
+    headers = {
+        'appKey': API_KEY,
+        'Content-Type': 'application/json',
+    }
+    body = {
+        'startX': str(origin_lng),
+        'startY': str(origin_lat),
+        'endX': str(dest_lng),
+        'endY': str(dest_lat),
+        'reqCoordType': 'WGS84GEO',
+        'resCoordType': 'WGS84GEO',
+        'startName': '출발지',
+        'endName': '목적지',
     }
 
     try:
-        response = requests.get(url, headers=headers, params=params, timeout=5)
+        response = requests.post(url, headers=headers, json=body, timeout=5)
         return response.json()
     except Exception as e:
+        print(f"TMAP 경로 탐색 오류: {e}")
         return None
 
 
@@ -132,25 +141,29 @@ def search_route(request):
     dest_lat, dest_lng = float(dest_lat), float(dest_lng)
 
     # 카카오맵 경로 탐색
-    kakao_data = get_kakao_route(origin_lat, origin_lng, dest_lat, dest_lng)
+    tmap_data = get_tmap_route(origin_lat, origin_lng, dest_lat, dest_lng)
 
     waypoints = []
     distance = 0
     duration = 0
 
-    if kakao_data and kakao_data.get('routes'):
-        route_data = kakao_data['routes'][0]
-        distance = route_data.get('summary', {}).get('distance', 0)
-        duration = route_data.get('summary', {}).get('duration', 0)
+    if tmap_data and tmap_data.get('features'):
+        for feature in tmap_data['features']:
+            geometry = feature.get('geometry', {})
+            properties = feature.get('properties', {})
 
-        # 경유지 추출
-        for section in route_data.get('sections', []):
-            for road in section.get('roads', []):
-                vertexes = road.get('vertexes', [])
-                for i in range(0, len(vertexes), 2):
+            # 거리/시간 추출
+            if properties.get('totalDistance'):
+                distance = properties['totalDistance']
+            if properties.get('totalTime'):
+                duration = properties['totalTime']
+
+            # 경유지 추출
+            if geometry.get('type') == 'LineString':
+                for coord in geometry.get('coordinates', []):
                     waypoints.append({
-                        'lat': vertexes[i+1],
-                        'lng': vertexes[i],
+                        'lat': coord[1],
+                        'lng': coord[0],
                     })
 
     # 날씨 정보 조회
