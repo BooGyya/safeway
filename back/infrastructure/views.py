@@ -210,3 +210,28 @@ def seoul_congestion(request):
             {'error': f'혼잡도 조회 실패: {str(e)}'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+    
+# 주변 엘리베이터 조회
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def nearby_elevators(request):
+    lat = request.query_params.get('lat')
+    lng = request.query_params.get('lng')
+    radius = float(request.query_params.get('radius', 0.01))
+
+    if not lat or not lng:
+        return Response(
+            {'error': '위도(lat)와 경도(lng)를 입력해주세요.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    lat, lng = float(lat), float(lng)
+
+    elevators = Elevator.objects.filter(
+        lat__range=(lat - radius, lat + radius),
+        lng__range=(lng - radius, lng + radius),
+        is_operating=True
+    )
+
+    serializer = ElevatorSerializer(elevators, many=True)
+    return Response(serializer.data)

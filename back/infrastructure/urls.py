@@ -9,6 +9,9 @@ urlpatterns = [
 
     # 장애인 편의시설
     path('facilities/', views.nearby_facilities, name='nearby_facilities'),
+    
+    # 엘리베이터
+    path('elevators/', views.nearby_elevators, name='nearby_elevators'),
 
     # 교통약자 이동지원센터
     path('support-centers/', views.nearby_support_centers, name='nearby_support_centers'),
