@@ -122,7 +122,7 @@ def get_weather_info(lat, lng):
 
 # 경로 탐색
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def search_route(request):
     origin_lat = request.data.get('origin_lat')
     origin_lng = request.data.get('origin_lng')
@@ -177,31 +177,44 @@ def search_route(request):
             duration = int(duration * 1.2)  # 20% 추가 소요
 
     # 안전도 점수 계산
-    user_type = request.user.user_type
+    user_type = request.user.user_type if request.user.is_authenticated else 'normal'
     safety_score = calculate_safety_score(waypoints, user_type)
 
     # 경로 저장
-    route = Route.objects.create(
-        user=request.user,
-        origin_name=origin_name,
-        origin_lat=origin_lat,
-        origin_lng=origin_lng,
-        dest_name=dest_name,
-        dest_lat=dest_lat,
-        dest_lng=dest_lng,
-        distance=distance,
-        duration=duration,
-        safety_score=safety_score,
-        waypoints=waypoints,
-        weather_applied=weather_applied,
-    )
+    if request.user.is_authenticated:
+        route = Route.objects.create(
+            user=request.user,
+            origin_name=origin_name,
+            origin_lat=origin_lat,
+            origin_lng=origin_lng,
+            dest_name=dest_name,
+            dest_lat=dest_lat,
+            dest_lng=dest_lng,
+            distance=distance,
+            duration=duration,
+            safety_score=safety_score,
+            waypoints=waypoints,
+            weather_applied=weather_applied,
+        )
+        RouteHistory.objects.create(user=request.user, route=route)
+        route_data = RouteSerializer(route).data
+    else:
+        route_data = {
+            'origin_name': origin_name,
+            'origin_lat': origin_lat,
+            'origin_lng': origin_lng,
+            'dest_name': dest_name,
+            'dest_lat': dest_lat,
+            'dest_lng': dest_lng,
+            'distance': distance,
+            'duration': duration,
+            'safety_score': safety_score,
+            'waypoints': waypoints,
+            'weather_applied': weather_applied,
+        }
 
-    # 히스토리 저장
-    RouteHistory.objects.create(user=request.user, route=route)
-
-    serializer = RouteSerializer(route)
     return Response({
-        'route': serializer.data,
+        'route': route_data,
         'weather': weather,
         'weather_applied': weather_applied,
     }, status=status.HTTP_201_CREATED)
