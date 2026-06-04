@@ -8,8 +8,7 @@ import math
 
 from .models import Route, RouteFavorite, RouteHistory
 from .serializers import RouteSerializer, RouteFavoriteSerializer, RouteHistorySerializer
-from infrastructure.models import TrafficLight
-
+from infrastructure.models import TrafficLight, Facility, SupportCenter
 
 def get_distance(lat1, lng1, lat2, lng2):
     """두 좌표 사이 거리 계산 (Haversine formula, 단위: m)"""
@@ -212,11 +211,79 @@ def search_route(request):
             'waypoints': waypoints,
             'weather_applied': weather_applied,
         }
+    # 경로 주변 편의시설 정보 수집
+    nearby = {
+        'traffic_lights': [],
+        'facilities': [],
+        'support_centers': [],
+    }
+
+    if waypoints:
+        # 경로 전체 범위 계산
+        lats = [wp['lat'] for wp in waypoints]
+        lngs = [wp['lng'] for wp in waypoints]
+        min_lat, max_lat = min(lats), max(lats)
+        min_lng, max_lng = min(lngs), max(lngs)
+        padding = 0.002  # 약 200m 여유
+
+        # 음향신호기
+        lights = TrafficLight.objects.filter(
+            lat__range=(min_lat - padding, max_lat + padding),
+            lng__range=(min_lng - padding, max_lng + padding),
+            has_audio=True,
+            is_operating=True
+        )[:20]
+        nearby['traffic_lights'] = [
+            {
+                'id': l.id,
+                'name': l.name,
+                'lat': l.lat,
+                'lng': l.lng,
+                'has_audio': l.has_audio,
+            }
+            for l in lights
+        ]
+
+        # 편의시설
+        facilities = Facility.objects.filter(
+            lat__range=(min_lat - padding, max_lat + padding),
+            lng__range=(min_lng - padding, max_lng + padding),
+            is_available=True
+        )[:20]
+        nearby['facilities'] = [
+            {
+                'id': f.id,
+                'name': f.name,
+                'facility_type': f.facility_type,
+                'lat': f.lat,
+                'lng': f.lng,
+                'address': f.address,
+            }
+            for f in facilities
+        ]
+
+        # 교통약자 이동지원센터
+        centers = SupportCenter.objects.filter(
+            lat__range=(min_lat - padding, max_lat + padding),
+            lng__range=(min_lng - padding, max_lng + padding),
+            is_operating=True
+        )[:10]
+        nearby['support_centers'] = [
+            {
+                'id': c.id,
+                'name': c.name,
+                'lat': c.lat,
+                'lng': c.lng,
+                'phone': c.phone,
+            }
+            for c in centers
+        ]
 
     return Response({
         'route': route_data,
         'weather': weather,
         'weather_applied': weather_applied,
+        'nearby': nearby,
     }, status=status.HTTP_201_CREATED)
 
 
