@@ -9,6 +9,7 @@ from .serializers import (
     CommentSerializer, FollowSerializer
 )
 from django.contrib.auth import get_user_model
+from django.db import models
 
 User = get_user_model()
 
@@ -20,7 +21,21 @@ def post_list(request):
     if request.method == 'GET':
         # 정렬 기준 (신뢰도순 / 최신순 / 팔로우 우선)
         sort = request.query_params.get('sort', 'latest')
+        keyword = request.query_params.get('q', '')
+        category = request.query_params.get('category', '')
+
         posts = Post.objects.all()
+
+        # 키워드 검색
+        if keyword:
+            posts = posts.filter(
+                models.Q(title__icontains=keyword) |
+                models.Q(content__icontains=keyword)
+            )
+
+        # 카테고리 필터
+        if category:
+            posts = posts.filter(category=category)
 
         if sort == 'reliability':
             posts = posts.order_by('-reliability_score', '-created_at')
