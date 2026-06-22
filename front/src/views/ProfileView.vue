@@ -97,6 +97,13 @@ const handleUpdateProfile = async () => {
   try {
     await authAPI.updateProfile(form.value)
     await auth.fetchProfile()
+    
+    // 글씨 크기 즉시 적용
+    const root = document.documentElement
+    if (form.value.font_size === 'small') root.style.fontSize = '14px'
+    else if (form.value.font_size === 'large') root.style.fontSize = '18px'
+    else root.style.fontSize = '16px'
+
     successMsg.value = '프로필이 저장되었습니다!'
     setTimeout(() => successMsg.value = '', 3000)
   } catch {

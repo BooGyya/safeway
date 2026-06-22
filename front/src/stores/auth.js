@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { authAPI } from '@/api/auth'
 
 export const useAuthStore = defineStore('auth', () => {
@@ -8,6 +8,20 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isLoggedIn = computed(() => !!accessToken.value)
   const isAdmin = computed(() => user.value?.is_staff || false)
+  const fontSize = computed(() => user.value?.font_size || 'medium')
+
+  // 글씨 크기 적용
+  const applyFontSize = (size) => {
+    const root = document.documentElement
+    if (size === 'small') root.style.fontSize = '14px'
+    else if (size === 'medium') root.style.fontSize = '16px'
+    else if (size === 'large') root.style.fontSize = '18px'
+  }
+
+  // fontSize 변경 감지
+  watch(fontSize, (newSize) => {
+    applyFontSize(newSize)
+  }, { immediate: true })
 
   const login = async (credentials) => {
     const { data } = await authAPI.login(credentials)
@@ -26,6 +40,7 @@ export const useAuthStore = defineStore('auth', () => {
       user.value = null
       accessToken.value = null
       localStorage.clear()
+      document.documentElement.style.fontSize = '16px'
     }
   }
 
@@ -35,5 +50,5 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.setItem('user', JSON.stringify(data))
   }
 
-  return { user, accessToken, isLoggedIn, isAdmin, login, logout, fetchProfile }
+  return { user, accessToken, isLoggedIn, isAdmin, fontSize, login, logout, fetchProfile }
 })
