@@ -293,6 +293,7 @@ def search_route(request):
             safety_score=safety_score,
             waypoints=waypoints,
             weather_applied=weather_applied,
+            transport_type=transport_type,
         )
         RouteHistory.objects.create(user=request.user, route=route)
         route_data = RouteSerializer(route).data

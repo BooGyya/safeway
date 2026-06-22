@@ -13,6 +13,7 @@ class RouteSerializer(serializers.ModelSerializer):
             'dest_name', 'dest_lat', 'dest_lng',
             'distance', 'duration', 'safety_score',
             'waypoints', 'weather_applied',
+            'transport_type',
             'created_at',
         ]
         read_only_fields = ['id', 'username', 'created_at']

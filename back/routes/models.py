@@ -31,6 +31,18 @@ class Route(models.Model):
     # 날씨 반영 여부
     weather_applied = models.BooleanField(default=False)
 
+    # 이동 수단
+    TRANSPORT_TYPE_CHOICES = [
+        ('walk', '도보'),
+        ('bus', '대중교통'),
+        ('taxi', '택시'),
+    ]
+    transport_type = models.CharField(
+        max_length=10,
+        choices=TRANSPORT_TYPE_CHOICES,
+        default='walk'
+    )
+    
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
