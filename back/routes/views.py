@@ -20,7 +20,7 @@ def get_distance(lat1, lng1, lat2, lng2):
     return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
 
-def get_tmap_route(origin_lat, origin_lng, dest_lat, dest_lng):
+def get_tmap_route(origin_lat, origin_lng, dest_lat, dest_lng, speed=1.0):
     """TMAP 보행자 경로 탐색"""
     API_KEY = os.getenv('TMAP_API_KEY')
     url = 'https://apis.openapi.sk.com/tmap/routes/pedestrian'
@@ -29,6 +29,9 @@ def get_tmap_route(origin_lat, origin_lng, dest_lat, dest_lng):
         'appKey': API_KEY,
         'Content-Type': 'application/json',
     }
+    # 보행속도 m/s → km/h 변환 (TMAP은 km/h 단위)
+    speed_kmh = max(1, int(speed * 3.6))
+
     body = {
         'startX': str(origin_lng),
         'startY': str(origin_lat),
@@ -38,6 +41,7 @@ def get_tmap_route(origin_lat, origin_lng, dest_lat, dest_lng):
         'resCoordType': 'WGS84GEO',
         'startName': '출발지',
         'endName': '목적지',
+        'speed': speed_kmh,
     }
 
     try:
@@ -140,8 +144,9 @@ def search_route(request):
     dest_lat, dest_lng = float(dest_lat), float(dest_lng)
 
     # 카카오맵 경로 탐색
-    tmap_data = get_tmap_route(origin_lat, origin_lng, dest_lat, dest_lng)
-
+    user_speed = request.user.walk_speed if request.user.is_authenticated else 1.0
+    tmap_data = get_tmap_route(origin_lat, origin_lng, dest_lat, dest_lng, speed=user_speed)
+    
     waypoints = []
     distance = 0
     duration = 0
@@ -236,10 +241,11 @@ def search_route(request):
         nearby['traffic_lights'] = [
             {
                 'id': l.id,
-                'name': l.name,
+                'road_nm': l.road_nm,
                 'lat': l.lat,
                 'lng': l.lng,
                 'has_audio': l.has_audio,
+                'has_remndr': l.has_remndr,
             }
             for l in lights
         ]
