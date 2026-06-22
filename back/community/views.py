@@ -102,6 +102,51 @@ def post_detail(request, post_id):
     post.delete()
     return Response({'message': '게시글이 삭제되었습니다.'})
 
+# 게시글 이미지 삭제
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def post_image_delete(request, post_id, image_id):
+    post = get_object_or_404(Post, id=post_id)
+    
+    if post.user != request.user:
+        return Response(
+            {'error': '권한이 없습니다.'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+    
+    image = get_object_or_404(PostImage, id=image_id, post=post)
+    image.image.delete()  # 실제 파일 삭제
+    image.delete()        # DB 삭제
+    return Response({'message': '이미지가 삭제되었습니다.'})
+
+
+# 게시글 이미지 추가
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def post_image_add(request, post_id):
+    post = get_object_or_404(Post, id=post_id)
+    
+    if post.user != request.user:
+        return Response(
+            {'error': '권한이 없습니다.'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+    
+    images = request.FILES.getlist('images')
+    if not images:
+        return Response(
+            {'error': '이미지를 첨부해주세요.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    for image in images:
+        PostImage.objects.create(post=post, image=image)
+    
+    from .serializers import PostImageSerializer
+    return Response(
+        PostImageSerializer(post.images.all(), many=True, context={'request': request}).data,
+        status=status.HTTP_201_CREATED
+    )
 
 # 댓글 생성
 @api_view(['POST'])
