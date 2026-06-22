@@ -2,13 +2,15 @@ from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly, AllowAny
 from rest_framework.response import Response
+from rest_framework.pagination import PageNumberPagination
 from django.shortcuts import get_object_or_404
-from .models import Post, Comment, PostLike, Follow
+from .models import Post, Comment, PostLike, Follow, PostImage
 from .serializers import (
     PostSerializer, PostDetailSerializer,
     CommentSerializer, FollowSerializer
 )
 from django.contrib.auth import get_user_model
+from django.db import models
 
 User = get_user_model()
 
@@ -18,9 +20,20 @@ User = get_user_model()
 @permission_classes([IsAuthenticatedOrReadOnly])
 def post_list(request):
     if request.method == 'GET':
-        # 정렬 기준 (신뢰도순 / 최신순 / 팔로우 우선)
         sort = request.query_params.get('sort', 'latest')
+        keyword = request.query_params.get('q', '')
+        category = request.query_params.get('category', '')
+
         posts = Post.objects.all()
+
+        if keyword:
+            posts = posts.filter(
+                models.Q(title__icontains=keyword) |
+                models.Q(content__icontains=keyword)
+            )
+
+        if category:
+            posts = posts.filter(category=category)
 
         if sort == 'reliability':
             posts = posts.order_by('-reliability_score', '-created_at')
@@ -36,16 +49,24 @@ def post_list(request):
         else:
             posts = posts.order_by('-created_at')
 
-        serializer = PostSerializer(
-            posts, many=True, context={'request': request}
-        )
-        return Response(serializer.data)
+        # 페이지네이션
+        paginator = PageNumberPagination()
+        paginator.page_size = 10
+        result_page = paginator.paginate_queryset(posts, request)
+        serializer = PostSerializer(result_page, many=True, context={'request': request})
+        return paginator.get_paginated_response(serializer.data)
 
     # 게시글 생성
     serializer = PostSerializer(data=request.data)
     if serializer.is_valid():
-        serializer.save(user=request.user)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        post = serializer.save(user=request.user)
+        
+        # 이미지 업로드 처리
+        images = request.FILES.getlist('images')
+        for image in images:
+            PostImage.objects.create(post=post, image=image)
+        
+        return Response(PostSerializer(post, context={'request': request}).data, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -81,6 +102,51 @@ def post_detail(request, post_id):
     post.delete()
     return Response({'message': '게시글이 삭제되었습니다.'})
 
+# 게시글 이미지 삭제
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def post_image_delete(request, post_id, image_id):
+    post = get_object_or_404(Post, id=post_id)
+    
+    if post.user != request.user:
+        return Response(
+            {'error': '권한이 없습니다.'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+    
+    image = get_object_or_404(PostImage, id=image_id, post=post)
+    image.image.delete()  # 실제 파일 삭제
+    image.delete()        # DB 삭제
+    return Response({'message': '이미지가 삭제되었습니다.'})
+
+
+# 게시글 이미지 추가
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def post_image_add(request, post_id):
+    post = get_object_or_404(Post, id=post_id)
+    
+    if post.user != request.user:
+        return Response(
+            {'error': '권한이 없습니다.'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+    
+    images = request.FILES.getlist('images')
+    if not images:
+        return Response(
+            {'error': '이미지를 첨부해주세요.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    for image in images:
+        PostImage.objects.create(post=post, image=image)
+    
+    from .serializers import PostImageSerializer
+    return Response(
+        PostImageSerializer(post.images.all(), many=True, context={'request': request}).data,
+        status=status.HTTP_201_CREATED
+    )
 
 # 댓글 생성
 @api_view(['POST'])

@@ -6,6 +6,10 @@ urlpatterns = [
     path('posts/', views.post_list, name='post_list'),
     path('posts/<int:post_id>/', views.post_detail, name='post_detail'),
     
+    # 게시글 이미지
+    path('posts/<int:post_id>/images/', views.post_image_add, name='post_image_add'),
+    path('posts/<int:post_id>/images/<int:image_id>/', views.post_image_delete, name='post_image_delete'),
+    
     # 댓글
     path('posts/<int:post_id>/comments/', views.comment_create, name='comment_create'),
     path('posts/<int:post_id>/comments/<int:comment_id>/', views.comment_detail, name='comment_detail'),
