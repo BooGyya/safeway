@@ -162,7 +162,7 @@ def send_sos(request):
 @permission_classes([AllowAny])
 def kakao_login(request):
     kakao_auth_url = "https://kauth.kakao.com/oauth/authorize"
-    redirect_uri = "http://127.0.0.1:8000/api/accounts/kakao/callback/"
+    redirect_uri = settings.KAKAO_REDIRECT_URI
     client_id = settings.KAKAO_REST_API_KEY
     
     url = f"{kakao_auth_url}?client_id={client_id}&redirect_uri={redirect_uri}&response_type=code"
@@ -184,7 +184,7 @@ def kakao_callback(request):
     token_data = {
         'grant_type': 'authorization_code',
         'client_id': settings.KAKAO_REST_API_KEY,
-        'redirect_uri': 'http://127.0.0.1:8000/api/accounts/kakao/callback/',
+        'redirect_uri': settings.KAKAO_REDIRECT_URI,
         'code': code,
     }
     token_res = req.post(token_url, data=token_data)
