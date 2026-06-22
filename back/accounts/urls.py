@@ -13,4 +13,5 @@ urlpatterns = [
     path('sos/', views.send_sos, name='send_sos'),
     path('kakao/', views.kakao_login, name='kakao_login'),
     path('kakao/callback/', views.kakao_callback, name='kakao_callback'),
+    path('mypage/', views.mypage, name='mypage'),
 ]

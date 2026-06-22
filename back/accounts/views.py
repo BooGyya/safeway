@@ -226,3 +226,69 @@ def kakao_callback(request):
         'access': str(refresh.access_token),
         'created': created,
     })
+
+# 마이페이지
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def mypage(request):
+    user = request.user
+    
+    # 최근 경로 탐색 5개
+    from routes.models import RouteHistory, RouteFavorite
+    recent_routes = RouteHistory.objects.filter(
+        user=user
+    ).select_related('route').order_by('-used_at')[:5]
+    
+    # 즐겨찾기 수
+    favorite_count = RouteFavorite.objects.filter(user=user).count()
+    
+    # 내가 작성한 글
+    from community.models import Post, Comment, Follow
+    my_posts = Post.objects.filter(user=user).order_by('-created_at')[:5]
+    my_comments = Comment.objects.filter(user=user).order_by('-created_at')[:5]
+    
+    # 팔로우/팔로잉 수
+    following_count = Follow.objects.filter(follower=user).count()
+    followers_count = Follow.objects.filter(following=user).count()
+    
+    return Response({
+        'user': UserSerializer(user).data,
+        'stats': {
+            'total_routes': RouteHistory.objects.filter(user=user).count(),
+            'favorite_count': favorite_count,
+            'post_count': Post.objects.filter(user=user).count(),
+            'following_count': following_count,
+            'followers_count': followers_count,
+        },
+        'recent_routes': [
+            {
+                'id': h.route.id,
+                'origin_name': h.route.origin_name,
+                'dest_name': h.route.dest_name,
+                'distance': h.route.distance,
+                'duration': h.route.duration,
+                'used_at': h.used_at,
+            }
+            for h in recent_routes
+        ],
+        'my_posts': [
+            {
+                'id': p.id,
+                'title': p.title,
+                'category': p.category,
+                'reliability_score': p.reliability_score,
+                'created_at': p.created_at,
+            }
+            for p in my_posts
+        ],
+        'my_comments': [
+            {
+                'id': c.id,
+                'content': c.content,
+                'post_id': c.post.id,
+                'post_title': c.post.title,
+                'created_at': c.created_at,
+            }
+            for c in my_comments
+        ],
+    })
