@@ -143,7 +143,7 @@ def search_route(request):
     origin_lat, origin_lng = float(origin_lat), float(origin_lng)
     dest_lat, dest_lng = float(dest_lat), float(dest_lng)
 
-    # 카카오맵 경로 탐색
+    # TMAP 보행자 경로 탐색
     user_speed = request.user.walk_speed if request.user.is_authenticated else 1.0
     tmap_data = get_tmap_route(origin_lat, origin_lng, dest_lat, dest_lng, speed=user_speed)
     
