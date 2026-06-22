@@ -3,7 +3,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly, AllowAny
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
-from .models import Post, Comment, PostLike, Follow
+from .models import Post, Comment, PostLike, Follow, PostImage
 from .serializers import (
     PostSerializer, PostDetailSerializer,
     CommentSerializer, FollowSerializer
@@ -44,8 +44,14 @@ def post_list(request):
     # 게시글 생성
     serializer = PostSerializer(data=request.data)
     if serializer.is_valid():
-        serializer.save(user=request.user)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        post = serializer.save(user=request.user)
+        
+        # 이미지 업로드 처리
+        images = request.FILES.getlist('images')
+        for image in images:
+            PostImage.objects.create(post=post, image=image)
+        
+        return Response(PostSerializer(post, context={'request': request}).data, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
