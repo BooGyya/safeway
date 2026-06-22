@@ -11,6 +11,7 @@ from solapi import SolapiMessageService
 from solapi.model import RequestMessage
 import requests as req
 from django.shortcuts import redirect
+from django.http import HttpResponseRedirect
 
 # 회원가입
 @api_view(['POST'])
@@ -220,12 +221,13 @@ def kakao_callback(request):
     # JWT 토큰 발급
     refresh = RefreshToken.for_user(user)
     
-    return Response({
-        'user': UserSerializer(user).data,
-        'refresh': str(refresh),
-        'access': str(refresh.access_token),
-        'created': created,
-    })
+    frontend_url = settings.FRONTEND_URL
+    return HttpResponseRedirect(
+        f"{frontend_url}/kakao/callback?"
+        f"access={str(refresh.access_token)}"
+        f"&refresh={str(refresh)}"
+        f"&created={str(created).lower()}"
+    )
 
 # 마이페이지
 @api_view(['GET'])

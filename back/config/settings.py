@@ -182,3 +182,5 @@ KAKAO_REST_API_KEY = os.getenv('KAKAO_REST_API_KEY')
 KAKAO_JS_KEY = os.getenv('KAKAO_JS_KEY')
 
 KAKAO_REDIRECT_URI = os.getenv('KAKAO_REDIRECT_URI')
+
+FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')
