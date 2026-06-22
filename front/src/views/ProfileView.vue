@@ -11,9 +11,10 @@ const mapStore = useMapStore()
 const router = useRouter()
 
 const profile = ref(null)
+const mypage = ref(null)
 const favorites = ref([])
 const history = ref([])
-const activeTab = ref('profile')
+const activeTab = ref('mypage')
 const loading = ref(false)
 const successMsg = ref('')
 
@@ -51,10 +52,20 @@ const passwordForm = ref({
 })
 
 onMounted(async () => {
+  await fetchMyPage()
   await fetchProfile()
   await fetchFavorites()
   await fetchHistory()
 })
+
+const fetchMyPage = async () => {
+  try {
+    const { data } = await authAPI.getMyPage()
+    mypage.value = data
+  } catch {
+    console.error('마이페이지 로드 실패')
+  }
+}
 
 const fetchProfile = async () => {
   try {
@@ -97,8 +108,7 @@ const handleUpdateProfile = async () => {
   try {
     await authAPI.updateProfile(form.value)
     await auth.fetchProfile()
-    
-    // 글씨 크기 즉시 적용
+
     const root = document.documentElement
     if (form.value.font_size === 'small') root.style.fontSize = '14px'
     else if (form.value.font_size === 'large') root.style.fontSize = '18px'
@@ -172,6 +182,11 @@ const formatDuration = (seconds) => {
 const formatDistance = (meters) => {
   return meters >= 1000 ? `${(meters/1000).toFixed(1)}km` : `${Math.round(meters)}m`
 }
+
+const formatDate = (dateStr) => {
+  const date = new Date(dateStr)
+  return `${date.getFullYear()}.${date.getMonth()+1}.${date.getDate()}`
+}
 </script>
 
 <template>
@@ -183,10 +198,11 @@ const formatDistance = (meters) => {
       <div class="tab-bar">
         <button
           v-for="tab in [
-            { value: 'profile', label: '프로필 설정' },
-            { value: 'favorites', label: '즐겨찾기' },
-            { value: 'history', label: '탐색 히스토리' },
-            { value: 'password', label: '비밀번호 변경' },
+            { value: 'mypage', label: '🏠 홈' },
+            { value: 'profile', label: '⚙️ 프로필 설정' },
+            { value: 'favorites', label: '⭐ 즐겨찾기' },
+            { value: 'history', label: '🕐 탐색 히스토리' },
+            { value: 'password', label: '🔒 비밀번호 변경' },
           ]"
           :key="tab.value"
           :class="['tab-btn', { active: activeTab === tab.value }]"
@@ -194,6 +210,94 @@ const formatDistance = (meters) => {
         >
           {{ tab.label }}
         </button>
+      </div>
+
+      <!-- 마이페이지 홈 -->
+      <div v-if="activeTab === 'mypage' && mypage" class="tab-content">
+
+        <!-- 유저 기본 정보 -->
+        <div class="user-info-box">
+          <div class="user-avatar">{{ mypage.user?.username?.charAt(0)?.toUpperCase() }}</div>
+          <div class="user-details">
+            <h3>{{ mypage.user?.username }}</h3>
+            <p>{{ mypage.user?.email }}</p>
+            <span class="user-type-badge">{{ mypage.user?.user_type }}</span>
+          </div>
+        </div>
+
+        <!-- 통계 -->
+        <div class="stats-grid">
+          <div class="stat-item">
+            <span class="stat-value">{{ mypage.stats?.route_count || 0 }}</span>
+            <span class="stat-label">경로 탐색</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value">{{ mypage.stats?.favorite_count || 0 }}</span>
+            <span class="stat-label">즐겨찾기</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value">{{ mypage.stats?.post_count || 0 }}</span>
+            <span class="stat-label">게시글</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value">{{ mypage.stats?.follower_count || 0 }}</span>
+            <span class="stat-label">팔로워</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value">{{ mypage.stats?.following_count || 0 }}</span>
+            <span class="stat-label">팔로잉</span>
+          </div>
+        </div>
+
+        <!-- 최근 경로 -->
+        <div class="section-box">
+          <h4>🗺 최근 경로</h4>
+          <div v-if="mypage.recent_routes?.length === 0" class="empty-small">없어요</div>
+          <div v-else class="small-list">
+            <div
+              v-for="route in mypage.recent_routes"
+              :key="route.id"
+              class="small-item"
+            >
+              <span>{{ route.origin_name }} → {{ route.dest_name }}</span>
+              <span class="small-sub">{{ formatDistance(route.distance) }} · {{ formatDuration(route.duration) }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 내가 쓴 글 -->
+        <div class="section-box">
+          <h4>📝 최근 게시글</h4>
+          <div v-if="mypage.recent_posts?.length === 0" class="empty-small">없어요</div>
+          <div v-else class="small-list">
+            <div
+              v-for="post in mypage.recent_posts"
+              :key="post.id"
+              class="small-item clickable"
+              @click="router.push(`/community/${post.id}`)"
+            >
+              <span>{{ post.title }}</span>
+              <span class="small-sub">{{ formatDate(post.created_at) }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 내가 쓴 댓글 -->
+        <div class="section-box">
+          <h4>💬 최근 댓글</h4>
+          <div v-if="mypage.recent_comments?.length === 0" class="empty-small">없어요</div>
+          <div v-else class="small-list">
+            <div
+              v-for="comment in mypage.recent_comments"
+              :key="comment.id"
+              class="small-item clickable"
+              @click="router.push(`/community/${comment.post}`)"
+            >
+              <span>{{ comment.content }}</span>
+              <span class="small-sub">{{ formatDate(comment.created_at) }}</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- 프로필 설정 -->
@@ -339,12 +443,12 @@ h2 {
   flex-wrap: wrap;
 }
 .tab-btn {
-  padding: 8px 20px;
+  padding: 8px 16px;
   border: 1px solid #ddd;
   border-radius: 20px;
   background: white;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 13px;
   color: #666;
 }
 .tab-btn.active {
@@ -357,7 +461,121 @@ h2 {
   border-radius: 12px;
   padding: 24px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
+
+/* 유저 정보 */
+.user-info-box {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background: #f0f4ff;
+  border-radius: 12px;
+}
+.user-avatar {
+  width: 56px;
+  height: 56px;
+  background: #2c7be5;
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+.user-details h3 {
+  font-size: 18px;
+  font-weight: bold;
+  color: #333;
+}
+.user-details p {
+  font-size: 13px;
+  color: #888;
+  margin-top: 2px;
+}
+.user-type-badge {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 2px 10px;
+  background: #2c7be5;
+  color: white;
+  border-radius: 20px;
+  font-size: 12px;
+}
+
+/* 통계 */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+}
+.stat-item {
+  background: #f9f9f9;
+  border-radius: 12px;
+  padding: 16px 8px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.stat-value {
+  font-size: 22px;
+  font-weight: bold;
+  color: #2c7be5;
+}
+.stat-label {
+  font-size: 12px;
+  color: #888;
+}
+
+/* 섹션 */
+.section-box {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.section-box h4 {
+  font-size: 15px;
+  font-weight: bold;
+  color: #333;
+}
+.small-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.small-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  background: #f9f9f9;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #333;
+}
+.small-item.clickable {
+  cursor: pointer;
+}
+.small-item.clickable:hover {
+  background: #f0f4ff;
+}
+.small-sub {
+  font-size: 12px;
+  color: #aaa;
+}
+.empty-small {
+  font-size: 13px;
+  color: #aaa;
+  padding: 8px 0;
+}
+
+/* 폼 */
 .form-box {
   display: flex;
   flex-direction: column;
@@ -478,7 +696,6 @@ hr {
   color: #aaa;
   padding: 40px;
 }
-
 @media (max-width: 768px) {
   .profile-page {
     padding: 16px;
@@ -490,8 +707,11 @@ hr {
     gap: 6px;
   }
   .tab-btn {
-    padding: 6px 14px;
-    font-size: 13px;
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+  .stats-grid {
+    grid-template-columns: repeat(3, 1fr);
   }
   .list-item {
     flex-direction: column;
