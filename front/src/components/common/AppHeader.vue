@@ -32,7 +32,8 @@ const closeMenu = () => {
 
       <div class="auth-buttons desktop-nav">
         <template v-if="auth.isLoggedIn">
-          <RouterLink to="/profile">{{ auth.user?.username }}</RouterLink>
+          <span class="username">{{ auth.user?.username }}</span>
+          <RouterLink to="/profile" class="mypage-btn">마이페이지</RouterLink>
           <button @click="handleLogout">로그아웃</button>
         </template>
         <template v-else>
@@ -56,7 +57,7 @@ const closeMenu = () => {
       <RouterLink to="/chatbot" v-if="auth.isLoggedIn" @click="closeMenu">🤖 AI 챗봇</RouterLink>
       <hr />
       <template v-if="auth.isLoggedIn">
-        <RouterLink to="/profile" @click="closeMenu">👤 {{ auth.user?.username }}</RouterLink>
+        <RouterLink to="/profile" @click="closeMenu">👤 마이페이지</RouterLink>
         <button @click="handleLogout">로그아웃</button>
       </template>
       <template v-else>
@@ -109,6 +110,19 @@ const closeMenu = () => {
   border-radius: 4px;
   cursor: pointer;
   font-size: 14px;
+}
+.username {
+  color: white;
+  font-size: 14px;
+}
+.mypage-btn {
+  background: transparent;
+  border: 1px solid white;
+  color: white !important;
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 14px;
+  text-decoration: none !important;
 }
 
 /* 햄버거 버튼 */
