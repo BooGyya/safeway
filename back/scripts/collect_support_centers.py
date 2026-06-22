@@ -44,16 +44,15 @@ def fetch_page(page_no, num_of_rows=1000):
 
 def parse_item(item):
     return {
-        'name': item.get('cnterNm', ''),
-        'sido': item.get('ctprvnNm', ''),
-        'sigungu': item.get('signguNm', ''),
+        'name': item.get('tfcwkerMvmnCnterNm', '') or item.get('institutionNm', ''),
+        'sido': item.get('insttNm', ''),
+        'sigungu': '',
         'address': item.get('rdnmadr', '') or item.get('lnmadr', ''),
         'lat': float(item.get('latitude', 0) or 0),
         'lng': float(item.get('longitude', 0) or 0),
-        'phone': item.get('phoneNumber', ''),
+        'phone': item.get('phoneNumber', '') or item.get('rceptPhoneNumber', ''),
         'is_operating': True,
     }
-
 
 def collect_all():
     print("교통약자 이동지원센터 데이터 수집 시작...")

@@ -18,4 +18,7 @@ urlpatterns = [
 
     # 서울 실시간 혼잡도
     path('congestion/', views.seoul_congestion, name='seoul_congestion'),
+    
+    # 주변 병원/복지시설/약국 조회
+    path('places/', views.nearby_places, name='nearby_places'),
 ]
