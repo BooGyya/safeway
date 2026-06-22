@@ -2,6 +2,7 @@ from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly, AllowAny
 from rest_framework.response import Response
+from rest_framework.pagination import PageNumberPagination
 from django.shortcuts import get_object_or_404
 from .models import Post, Comment, PostLike, Follow, PostImage
 from .serializers import (
@@ -19,21 +20,18 @@ User = get_user_model()
 @permission_classes([IsAuthenticatedOrReadOnly])
 def post_list(request):
     if request.method == 'GET':
-        # 정렬 기준 (신뢰도순 / 최신순 / 팔로우 우선)
         sort = request.query_params.get('sort', 'latest')
         keyword = request.query_params.get('q', '')
         category = request.query_params.get('category', '')
 
         posts = Post.objects.all()
 
-        # 키워드 검색
         if keyword:
             posts = posts.filter(
                 models.Q(title__icontains=keyword) |
                 models.Q(content__icontains=keyword)
             )
 
-        # 카테고리 필터
         if category:
             posts = posts.filter(category=category)
 
@@ -51,10 +49,12 @@ def post_list(request):
         else:
             posts = posts.order_by('-created_at')
 
-        serializer = PostSerializer(
-            posts, many=True, context={'request': request}
-        )
-        return Response(serializer.data)
+        # 페이지네이션
+        paginator = PageNumberPagination()
+        paginator.page_size = 10
+        result_page = paginator.paginate_queryset(posts, request)
+        serializer = PostSerializer(result_page, many=True, context={'request': request})
+        return paginator.get_paginated_response(serializer.data)
 
     # 게시글 생성
     serializer = PostSerializer(data=request.data)
