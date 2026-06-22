@@ -329,8 +329,8 @@ def favorite_list(request):
     return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
-# 즐겨찾기 삭제
-@api_view(['DELETE'])
+# 즐겨찾기 수정 / 삭제
+@api_view(['PATCH', 'DELETE'])
 @permission_classes([IsAuthenticated])
 def favorite_detail(request, favorite_id):
     try:
@@ -340,6 +340,15 @@ def favorite_detail(request, favorite_id):
             {'error': '즐겨찾기를 찾을 수 없습니다.'},
             status=status.HTTP_404_NOT_FOUND
         )
+    
+    if request.method == 'PATCH':
+        nickname = request.data.get('nickname')
+        if nickname:
+            favorite.nickname = nickname
+            favorite.save()
+        serializer = RouteFavoriteSerializer(favorite)
+        return Response(serializer.data)
+    
     favorite.delete()
     return Response({'message': '즐겨찾기가 삭제되었습니다.'})
 
