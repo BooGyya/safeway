@@ -20,10 +20,41 @@ def get_distance(lat1, lng1, lat2, lng2):
     return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
 
-def get_tmap_route(origin_lat, origin_lng, dest_lat, dest_lng):
+def get_tmap_route(origin_lat, origin_lng, dest_lat, dest_lng, speed=1.0):
     """TMAP 보행자 경로 탐색"""
     API_KEY = os.getenv('TMAP_API_KEY')
     url = 'https://apis.openapi.sk.com/tmap/routes/pedestrian'
+
+    headers = {
+        'appKey': API_KEY,
+        'Content-Type': 'application/json',
+    }
+    # 보행속도 m/s → km/h 변환 (TMAP은 km/h 단위)
+    speed_kmh = max(1, int(speed * 3.6))
+
+    body = {
+        'startX': str(origin_lng),
+        'startY': str(origin_lat),
+        'endX': str(dest_lng),
+        'endY': str(dest_lat),
+        'reqCoordType': 'WGS84GEO',
+        'resCoordType': 'WGS84GEO',
+        'startName': '출발지',
+        'endName': '목적지',
+        'speed': speed_kmh,
+    }
+
+    try:
+        response = requests.post(url, headers=headers, json=body, timeout=5)
+        return response.json()
+    except Exception as e:
+        print(f"TMAP 경로 탐색 오류: {e}")
+        return None
+    
+def get_tmap_transit_route(origin_lat, origin_lng, dest_lat, dest_lng):
+    """TMAP 대중교통 경로 탐색"""
+    API_KEY = os.getenv('TMAP_API_KEY')
+    url = 'https://apis.openapi.sk.com/transit/routes'
 
     headers = {
         'appKey': API_KEY,
@@ -36,17 +67,35 @@ def get_tmap_route(origin_lat, origin_lng, dest_lat, dest_lng):
         'endY': str(dest_lat),
         'reqCoordType': 'WGS84GEO',
         'resCoordType': 'WGS84GEO',
-        'startName': '출발지',
-        'endName': '목적지',
+        'count': 1,
     }
 
     try:
         response = requests.post(url, headers=headers, json=body, timeout=5)
         return response.json()
     except Exception as e:
-        print(f"TMAP 경로 탐색 오류: {e}")
+        print(f"TMAP 대중교통 경로 탐색 오류: {e}")
         return None
 
+
+def get_kakao_car_route(origin_lat, origin_lng, dest_lat, dest_lng):
+    """카카오 자동차 경로 탐색 (택시용)"""
+    API_KEY = os.getenv('KAKAO_REST_API_KEY')
+    url = 'https://apis-navi.kakaomobility.com/v1/directions'
+
+    headers = {'Authorization': f'KakaoAK {API_KEY}'}
+    params = {
+        'origin': f'{origin_lng},{origin_lat}',
+        'destination': f'{dest_lng},{dest_lat}',
+        'priority': 'RECOMMEND',
+    }
+
+    try:
+        response = requests.get(url, headers=headers, params=params, timeout=5)
+        return response.json()
+    except Exception as e:
+        print(f"카카오 자동차 경로 탐색 오류: {e}")
+        return None
 
 def calculate_safety_score(waypoints, user_type):
     """경로 안전도 점수 계산"""
@@ -123,6 +172,7 @@ def get_weather_info(lat, lng):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def search_route(request):
+    transport_type = request.data.get('transport_type', 'walk')
     origin_lat = request.data.get('origin_lat')
     origin_lng = request.data.get('origin_lng')
     origin_name = request.data.get('origin_name', '출발지')
@@ -139,31 +189,80 @@ def search_route(request):
     origin_lat, origin_lng = float(origin_lat), float(origin_lng)
     dest_lat, dest_lng = float(dest_lat), float(dest_lng)
 
-    # 카카오맵 경로 탐색
-    tmap_data = get_tmap_route(origin_lat, origin_lng, dest_lat, dest_lng)
+    # TMAP 보행자 경로 탐색
+    user_speed = request.user.walk_speed if request.user.is_authenticated else 1.0
 
     waypoints = []
     distance = 0
     duration = 0
 
-    if tmap_data and tmap_data.get('features'):
-        for feature in tmap_data['features']:
-            geometry = feature.get('geometry', {})
-            properties = feature.get('properties', {})
+    if transport_type == 'bus':
+        tmap_data = get_tmap_transit_route(origin_lat, origin_lng, dest_lat, dest_lng)
+        # 대중교통 응답 파싱
+        if tmap_data and tmap_data.get('metaData'):
+            plan = tmap_data['metaData'].get('plan', {})
+            itineraries = plan.get('itineraries', [])
+            if itineraries:
+                best = itineraries[0]
+                distance = best.get('totalDistance', 0)
+                duration = best.get('totalTime', 0)
+                for leg in best.get('legs', []):
+                    # 출발/도착 좌표 추가
+                    start = leg.get('start', {})
+                    end = leg.get('end', {})
+                    if start.get('lat') and start.get('lon'):
+                        waypoints.append({'lat': start['lat'], 'lng': start['lon']})
+                    
+                    # steps의 linestring 파싱
+                    steps = leg.get('steps', [])
+                    for step in steps:
+                        linestring = step.get('linestring', '')
+                        if linestring:
+                            for coord in linestring.split(' '):
+                                parts = coord.split(',')
+                                if len(parts) == 2:
+                                    try:
+                                        waypoints.append({
+                                            'lat': float(parts[1]),
+                                            'lng': float(parts[0]),
+                                        })
+                                    except ValueError:
+                                        pass
+                    
+                    if end.get('lat') and end.get('lon'):
+                        waypoints.append({'lat': end['lat'], 'lng': end['lon']})
+    elif transport_type == 'taxi':
+        tmap_data = get_kakao_car_route(origin_lat, origin_lng, dest_lat, dest_lng)
+        if tmap_data and tmap_data.get('routes'):
+            route_data_kakao = tmap_data['routes'][0]
+            distance = route_data_kakao.get('summary', {}).get('distance', 0)
+            duration = route_data_kakao.get('summary', {}).get('duration', 0)
+            for section in route_data_kakao.get('sections', []):
+                for road in section.get('roads', []):
+                    vertexes = road.get('vertexes', [])
+                    for i in range(0, len(vertexes) - 1, 2):
+                        waypoints.append({
+                            'lat': vertexes[i+1],
+                            'lng': vertexes[i],
+                        })
+    else:  # walk
+        tmap_data = get_tmap_route(origin_lat, origin_lng, dest_lat, dest_lng, speed=user_speed)
+        if tmap_data and tmap_data.get('features'):
+            for feature in tmap_data['features']:
+                geometry = feature.get('geometry', {})
+                properties = feature.get('properties', {})
 
-            # 거리/시간 추출
-            if properties.get('totalDistance'):
-                distance = properties['totalDistance']
-            if properties.get('totalTime'):
-                duration = properties['totalTime']
+                if properties.get('totalDistance'):
+                    distance = properties['totalDistance']
+                if properties.get('totalTime'):
+                    duration = properties['totalTime']
 
-            # 경유지 추출
-            if geometry.get('type') == 'LineString':
-                for coord in geometry.get('coordinates', []):
-                    waypoints.append({
-                        'lat': coord[1],
-                        'lng': coord[0],
-                    })
+                if geometry.get('type') == 'LineString':
+                    for coord in geometry.get('coordinates', []):
+                        waypoints.append({
+                            'lat': coord[1],
+                            'lng': coord[0],
+                        })
 
     # 날씨 정보 조회
     weather = get_weather_info(origin_lat, origin_lng)
@@ -236,10 +335,11 @@ def search_route(request):
         nearby['traffic_lights'] = [
             {
                 'id': l.id,
-                'name': l.name,
+                'road_nm': l.road_nm,
                 'lat': l.lat,
                 'lng': l.lng,
                 'has_audio': l.has_audio,
+                'has_remndr': l.has_remndr,
             }
             for l in lights
         ]
@@ -284,6 +384,7 @@ def search_route(request):
         'weather': weather,
         'weather_applied': weather_applied,
         'nearby': nearby,
+        'transport_type': transport_type,
     }, status=status.HTTP_201_CREATED)
 
 
@@ -323,8 +424,8 @@ def favorite_list(request):
     return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
-# 즐겨찾기 삭제
-@api_view(['DELETE'])
+# 즐겨찾기 수정 / 삭제
+@api_view(['PATCH', 'DELETE'])
 @permission_classes([IsAuthenticated])
 def favorite_detail(request, favorite_id):
     try:
@@ -334,6 +435,15 @@ def favorite_detail(request, favorite_id):
             {'error': '즐겨찾기를 찾을 수 없습니다.'},
             status=status.HTTP_404_NOT_FOUND
         )
+    
+    if request.method == 'PATCH':
+        nickname = request.data.get('nickname')
+        if nickname:
+            favorite.nickname = nickname
+            favorite.save()
+        serializer = RouteFavoriteSerializer(favorite)
+        return Response(serializer.data)
+    
     favorite.delete()
     return Response({'message': '즐겨찾기가 삭제되었습니다.'})
 

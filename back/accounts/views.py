@@ -11,6 +11,7 @@ from solapi import SolapiMessageService
 from solapi.model import RequestMessage
 import requests as req
 from django.shortcuts import redirect
+from django.http import HttpResponseRedirect
 
 # 회원가입
 @api_view(['POST'])
@@ -162,7 +163,7 @@ def send_sos(request):
 @permission_classes([AllowAny])
 def kakao_login(request):
     kakao_auth_url = "https://kauth.kakao.com/oauth/authorize"
-    redirect_uri = "http://127.0.0.1:8000/api/accounts/kakao/callback/"
+    redirect_uri = settings.KAKAO_REDIRECT_URI
     client_id = settings.KAKAO_REST_API_KEY
     
     url = f"{kakao_auth_url}?client_id={client_id}&redirect_uri={redirect_uri}&response_type=code"
@@ -184,7 +185,7 @@ def kakao_callback(request):
     token_data = {
         'grant_type': 'authorization_code',
         'client_id': settings.KAKAO_REST_API_KEY,
-        'redirect_uri': 'http://127.0.0.1:8000/api/accounts/kakao/callback/',
+        'redirect_uri': settings.KAKAO_REDIRECT_URI,
         'code': code,
     }
     token_res = req.post(token_url, data=token_data)
@@ -220,9 +221,113 @@ def kakao_callback(request):
     # JWT 토큰 발급
     refresh = RefreshToken.for_user(user)
     
+    frontend_url = settings.FRONTEND_URL
+    return HttpResponseRedirect(
+        f"{frontend_url}/kakao/callback?"
+        f"access={str(refresh.access_token)}"
+        f"&refresh={str(refresh)}"
+        f"&created={str(created).lower()}"
+    )
+
+# 마이페이지
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def mypage(request):
+    user = request.user
+    
+    # 최근 경로 탐색 5개
+    from routes.models import RouteHistory, RouteFavorite
+    recent_routes = RouteHistory.objects.filter(
+        user=user
+    ).select_related('route').order_by('-used_at')[:5]
+    
+    # 즐겨찾기 수
+    favorite_count = RouteFavorite.objects.filter(user=user).count()
+    
+    # 내가 작성한 글
+    from community.models import Post, Comment, Follow
+    my_posts = Post.objects.filter(user=user).order_by('-created_at')[:5]
+    my_comments = Comment.objects.filter(user=user).order_by('-created_at')[:5]
+    
+    # 팔로우/팔로잉 수
+    following_count = Follow.objects.filter(follower=user).count()
+    followers_count = Follow.objects.filter(following=user).count()
+    
     return Response({
         'user': UserSerializer(user).data,
-        'refresh': str(refresh),
-        'access': str(refresh.access_token),
-        'created': created,
+        'stats': {
+            'total_routes': RouteHistory.objects.filter(user=user).count(),
+            'favorite_count': favorite_count,
+            'post_count': Post.objects.filter(user=user).count(),
+            'following_count': following_count,
+            'followers_count': followers_count,
+        },
+        'recent_routes': [
+            {
+                'id': h.route.id,
+                'origin_name': h.route.origin_name,
+                'dest_name': h.route.dest_name,
+                'distance': h.route.distance,
+                'duration': h.route.duration,
+                'used_at': h.used_at,
+            }
+            for h in recent_routes
+        ],
+        'my_posts': [
+            {
+                'id': p.id,
+                'title': p.title,
+                'category': p.category,
+                'reliability_score': p.reliability_score,
+                'created_at': p.created_at,
+            }
+            for p in my_posts
+        ],
+        'my_comments': [
+            {
+                'id': c.id,
+                'content': c.content,
+                'post_id': c.post.id,
+                'post_title': c.post.title,
+                'created_at': c.created_at,
+            }
+            for c in my_comments
+        ],
+    })
+
+# 다른 사용자 프로필 조회
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def user_profile(request, user_id):
+    from django.shortcuts import get_object_or_404
+    target_user = get_object_or_404(User, id=user_id)
+    
+    from community.models import Post, Follow
+    
+    is_following = False
+    if request.user.is_authenticated:
+        is_following = Follow.objects.filter(
+            follower=request.user,
+            following=target_user
+        ).exists()
+    
+    return Response({
+        'id': target_user.id,
+        'username': target_user.username,
+        'profile_image': request.build_absolute_uri(target_user.profile_image.url) if target_user.profile_image else None,
+        'user_type': target_user.user_type,
+        'post_count': Post.objects.filter(user=target_user).count(),
+        'following_count': Follow.objects.filter(follower=target_user).count(),
+        'followers_count': Follow.objects.filter(following=target_user).count(),
+        'is_following': is_following,
+        'recent_posts': [
+            {
+                'id': p.id,
+                'title': p.title,
+                'category': p.category,
+                'reliability_score': p.reliability_score,
+                'created_at': p.created_at,
+            }
+            for p in Post.objects.filter(user=target_user).order_by('-created_at')[:5]
+        ]
     })

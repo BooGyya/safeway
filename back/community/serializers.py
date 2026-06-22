@@ -1,7 +1,11 @@
 from rest_framework import serializers
-from .models import Post, Comment, PostLike, Follow
+from .models import Post, Comment, PostLike, Follow, PostImage
 from django.conf import settings
 
+class PostImageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PostImage
+        fields = ['id', 'image', 'created_at']
 
 class CommentSerializer(serializers.ModelSerializer):
     username = serializers.CharField(source='user.username', read_only=True)
@@ -20,6 +24,7 @@ class PostSerializer(serializers.ModelSerializer):
     like_count = serializers.IntegerField(source='likes.count', read_only=True)
     comment_count = serializers.IntegerField(source='comments.count', read_only=True)
     is_liked = serializers.SerializerMethodField()
+    images = PostImageSerializer(many=True, read_only=True)
 
     class Meta:
         model = Post
@@ -28,6 +33,7 @@ class PostSerializer(serializers.ModelSerializer):
             'category', 'latitude', 'longitude', 'address',
             'reliability_score', 'is_trusted', 'view_count',
             'like_count', 'comment_count', 'is_liked',
+            'images',
             'created_at', 'updated_at'
         ]
         read_only_fields = [

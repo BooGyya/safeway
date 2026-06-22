@@ -235,3 +235,97 @@ def nearby_elevators(request):
 
     serializer = ElevatorSerializer(elevators, many=True)
     return Response(serializer.data)
+
+# 주변 병원/복지시설/약국 조회
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def nearby_places(request):
+    lat = request.query_params.get('lat')
+    lng = request.query_params.get('lng')
+    place_type = request.query_params.get('type', 'hospital')
+    radius = int(request.query_params.get('radius', 1000))
+
+    if not lat or not lng:
+        return Response(
+            {'error': '위도(lat)와 경도(lng)를 입력해주세요.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    lat, lng = float(lat), float(lng)
+
+    # 복지시설은 DB에서 조회
+    if place_type == 'welfare':
+        radius_degree = radius / 111000  # 미터 → 도 변환 (약 111km = 1도)
+        centers = SupportCenter.objects.filter(
+            lat__range=(lat - radius_degree, lat + radius_degree),
+            lng__range=(lng - radius_degree, lng + radius_degree),
+            is_operating=True
+        )[:15]
+        results = [
+            {
+                'name': c.name,
+                'address': c.address,
+                'lat': c.lat,
+                'lng': c.lng,
+                'phone': c.phone,
+                'distance': '',
+                'place_url': '',
+            }
+            for c in centers
+        ]
+        return Response({
+            'type': place_type,
+            'count': len(results),
+            'results': results,
+        })
+
+    # 병원/약국은 카카오 API로 조회
+    category_map = {
+        'hospital': 'HP8',
+        'pharmacy': 'PM9',
+        'public': 'PO3',
+    }
+
+    category_code = category_map.get(place_type, 'HP8')
+
+    API_KEY = os.getenv('KAKAO_REST_API_KEY')
+    url = 'https://dapi.kakao.com/v2/local/search/category.json'
+    headers = {'Authorization': f'KakaoAK {API_KEY}'}
+    params = {
+        'category_group_code': category_code,
+        'x': lng,
+        'y': lat,
+        'radius': radius,
+        'sort': 'distance',
+        'size': 15,
+    }
+
+    try:
+        response = requests.get(url, headers=headers, params=params, timeout=5)
+        data = response.json()
+        results = [
+            {
+                'name': doc['place_name'],
+                'address': doc['road_address_name'] or doc['address_name'],
+                'lat': float(doc['y']),
+                'lng': float(doc['x']),
+                'phone': doc.get('phone', ''),
+                'distance': doc.get('distance', ''),
+                'place_url': doc.get('place_url', ''),
+            }
+            for doc in data.get('documents', [])
+        ]
+        return Response({
+            'type': place_type,
+            'count': len(results),
+            'results': results,
+        })
+    except Exception as e:
+        return Response(
+            {'error': f'장소 검색 실패: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+    
+
+
+    
