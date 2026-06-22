@@ -144,4 +144,12 @@ button:disabled {
   text-decoration: none;
   font-weight: bold;
 }
+
+@media (max-width: 768px) {
+  .login-box {
+    padding: 32px 24px;
+    margin: 16px;
+    border-radius: 12px;
+  }
+}
 </style>

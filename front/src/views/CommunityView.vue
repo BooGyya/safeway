@@ -217,4 +217,26 @@ h2 {
   background: white;
   border-radius: 12px;
 }
+
+@media (max-width: 768px) {
+  .community-page {
+    padding: 16px;
+  }
+  .top-bar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .write-btn {
+    width: 100%;
+    text-align: center;
+  }
+  .sort-bar {
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+  .post-card {
+    padding: 16px;
+  }
+}
 </style>

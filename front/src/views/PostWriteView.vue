@@ -265,4 +265,22 @@ textarea {
 .submit-btn:disabled {
   background: #aaa;
 }
+
+@media (max-width: 768px) {
+  .write-page {
+    padding: 16px;
+  }
+  .form-box {
+    padding: 16px;
+  }
+  .location-row {
+    flex-direction: column;
+  }
+  .location-btn {
+    width: 100%;
+  }
+  .category-group {
+    gap: 6px;
+  }
+}
 </style>

@@ -471,4 +471,29 @@ hr {
   color: #aaa;
   padding: 40px;
 }
+
+@media (max-width: 768px) {
+  .profile-page {
+    padding: 16px;
+  }
+  .tab-content {
+    padding: 16px;
+  }
+  .tab-bar {
+    gap: 6px;
+  }
+  .tab-btn {
+    padding: 6px 14px;
+    font-size: 13px;
+  }
+  .list-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .del-btn {
+    width: 100%;
+    text-align: center;
+  }
+}
 </style>

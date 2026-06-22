@@ -347,4 +347,25 @@ onMounted(fetchPost)
   color: #888;
   padding: 40px;
 }
+
+@media (max-width: 768px) {
+  .detail-page {
+    padding: 16px;
+  }
+  .post-box {
+    padding: 16px;
+  }
+  .comment-box {
+    padding: 16px;
+  }
+  .comment-form {
+    flex-direction: column;
+  }
+  .comment-form button {
+    width: 100%;
+  }
+  .bubble {
+    max-width: 90%;
+  }
+}
 </style>

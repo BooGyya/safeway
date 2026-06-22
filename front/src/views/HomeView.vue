@@ -465,4 +465,19 @@ h2 {
 .map {
   flex: 1;
 }
+
+@media (max-width: 768px) {
+  .home {
+    flex-direction: column;
+  }
+  .side-panel {
+    width: 100%;
+    height: auto;
+    max-height: 50vh;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  }
+  .map {
+    height: 50vh;
+  }
+}
 </style>

@@ -250,4 +250,27 @@ const sendMessage = async () => {
 .send-btn:disabled {
   background: #aaa;
 }
+
+@media (max-width: 768px) {
+  .chatbot-page {
+    padding: 16px;
+  }
+  .chat-box {
+    height: 400px;
+    padding: 16px;
+  }
+  .bubble {
+    max-width: 90%;
+  }
+  .suggestions {
+    gap: 6px;
+  }
+  .suggest-btn {
+    font-size: 12px;
+    padding: 6px 10px;
+  }
+  .input-box input {
+    font-size: 14px;
+  }
+}
 </style>
