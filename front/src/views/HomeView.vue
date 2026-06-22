@@ -2,13 +2,16 @@
 import { ref, onMounted } from 'vue'
 import { routeAPI } from '@/api/routes'
 import { useAuthStore } from '@/stores/auth'
+import { useRouter } from 'vue-router'
 
 const auth = useAuthStore()
+const router = useRouter()
 
 // 지도 관련
 const mapContainer = ref(null)
 let map = null
 let markers = []
+let polylines = []
 
 // 경로 탐색 관련
 const originQuery = ref('')
@@ -39,7 +42,11 @@ onMounted(() => {
 
 // 주소 검색
 const searchAddress = async (query, type) => {
-  if (!query) return
+  if (!query) {
+    if (type === 'origin') originSuggestions.value = []
+    else destSuggestions.value = []
+    return
+  }
   try {
     const { data } = await routeAPI.searchAddress(query)
     if (type === 'origin') originSuggestions.value = data
@@ -63,10 +70,12 @@ const selectDest = (place) => {
   destSuggestions.value = []
 }
 
-// 마커 초기화
-const clearMarkers = () => {
+// 마커 및 경로 초기화
+const clearMap = () => {
   markers.forEach(m => m.setMap(null))
   markers = []
+  polylines.forEach(p => p.setMap(null))
+  polylines = []
 }
 
 // 경로 탐색
@@ -97,7 +106,7 @@ const searchRoute = async () => {
 
 // 지도에 경로 그리기
 const drawRoute = (data) => {
-  clearMarkers()
+  clearMap()
   const route = data.route
   const waypoints = route.waypoints
 
@@ -109,12 +118,15 @@ const drawRoute = (data) => {
     strokeOpacity: 0.8,
   })
   polyline.setMap(map)
+  polylines.push(polyline)
 
+  // 출발지 마커
   const originMarker = new window.kakao.maps.Marker({
     position: new window.kakao.maps.LatLng(route.origin_lat, route.origin_lng),
     map,
   })
 
+  // 목적지 마커
   const destMarker = new window.kakao.maps.Marker({
     position: new window.kakao.maps.LatLng(route.dest_lat, route.dest_lng),
     map,
@@ -122,9 +134,58 @@ const drawRoute = (data) => {
 
   markers.push(originMarker, destMarker)
 
+  // 지도 범위 조정
   const bounds = new window.kakao.maps.LatLngBounds()
   path.forEach(p => bounds.extend(p))
   map.setBounds(bounds)
+
+  // 주변 시설 마커 표시
+  if (data.nearby) {
+    drawNearbyMarkers(data.nearby)
+  }
+}
+
+// 주변 시설 마커
+const drawNearbyMarkers = (nearby) => {
+  // 신호등
+  nearby.traffic_lights?.forEach(tl => {
+    const marker = new window.kakao.maps.Marker({
+      position: new window.kakao.maps.LatLng(tl.lat, tl.lng),
+      map,
+      title: tl.name,
+    })
+    markers.push(marker)
+  })
+
+  // 편의시설
+  nearby.facilities?.forEach(f => {
+    const marker = new window.kakao.maps.Marker({
+      position: new window.kakao.maps.LatLng(f.lat, f.lng),
+      map,
+      title: f.name,
+    })
+    markers.push(marker)
+  })
+}
+
+// 즐겨찾기 추가
+const addFavorite = async () => {
+  if (!auth.isLoggedIn) {
+    alert('로그인이 필요합니다.')
+    router.push('/login')
+    return
+  }
+  const nickname = prompt('즐겨찾기 이름을 입력하세요 (예: 집 → 회사)')
+  if (!nickname) return
+  try {
+    await routeAPI.addFavorite({
+      route_id: routeResult.value.route.id,
+      nickname
+    })
+    alert('즐겨찾기에 추가되었습니다! ⭐')
+  } catch {
+    alert('즐겨찾기 추가에 실패했습니다.')
+  }
 }
 
 // 시간 포맷
@@ -217,11 +278,18 @@ const formatDistance = (meters) => {
           </p>
         </div>
 
+        <!-- 주변 시설 요약 -->
+        <div v-if="routeResult.nearby" class="nearby-info">
+          <p>🚦 신호등 {{ routeResult.nearby.traffic_lights?.length || 0 }}개</p>
+          <p>♿ 편의시설 {{ routeResult.nearby.facilities?.length || 0 }}개</p>
+          <p>🏥 지원센터 {{ routeResult.nearby.support_centers?.length || 0 }}개</p>
+        </div>
+
         <!-- 즐겨찾기 -->
         <button
           v-if="auth.isLoggedIn"
           class="favorite-btn"
-          @click="$router.push('/profile')"
+          @click="addFavorite"
         >
           ⭐ 즐겨찾기 추가
         </button>
@@ -352,19 +420,33 @@ h2 {
 .weather-info {
   font-size: 13px;
   color: #555;
+  background: white;
+  padding: 10px;
+  border-radius: 8px;
 }
 .weather-warning {
   color: orange;
   margin-top: 4px;
 }
+.nearby-info {
+  background: white;
+  padding: 10px;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: #555;
+}
 .favorite-btn {
-  padding: 8px;
+  padding: 10px;
   background: white;
   border: 1px solid #2c7be5;
   color: #2c7be5;
   border-radius: 8px;
   cursor: pointer;
   font-size: 14px;
+  font-weight: bold;
 }
 .map {
   flex: 1;
