@@ -21,4 +21,7 @@ export const infraAPI = {
 
   getCongestion: (area_nm) =>
     api.get('/api/infrastructure/congestion/', { params: { area_nm } }),
+
+  getPlaces: (lat, lng, type) =>
+    api.get('/api/infrastructure/places/', { params: { lat, lng, type } }),
 }

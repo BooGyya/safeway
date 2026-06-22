@@ -5,7 +5,6 @@ import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
 import { useMapStore } from '@/stores/map'
 
-
 const auth = useAuthStore()
 const router = useRouter()
 const mapStore = useMapStore()
@@ -26,6 +25,13 @@ const destSuggestions = ref([])
 const routeResult = ref(null)
 const loading = ref(false)
 const errorMsg = ref('')
+const transportType = ref('walk')
+
+const transportOptions = [
+  { value: 'walk', label: '🚶 도보' },
+  { value: 'bus', label: '🚌 대중교통' },
+  { value: 'taxi', label: '🚕 택시' },
+]
 
 // 지도 초기화
 onMounted(() => {
@@ -65,8 +71,8 @@ const searchAddress = async (query, type) => {
     const { data } = await routeAPI.searchAddress(query)
     if (type === 'origin') originSuggestions.value = data
     else destSuggestions.value = data
-  } catch {
-    console.error('주소 검색 실패')
+  } catch (e) {
+    console.error('주소 검색 실패', e.response?.status, e.response?.data)
   }
 }
 
@@ -108,6 +114,7 @@ const searchRoute = async () => {
       dest_lat: destResult.value.lat,
       dest_lng: destResult.value.lng,
       dest_name: destResult.value.name,
+      transport_type: transportType.value,
     })
     routeResult.value = data
     drawRoute(data)
@@ -124,11 +131,19 @@ const drawRoute = (data) => {
   const route = data.route
   const waypoints = route.waypoints
 
+  // 이동 수단별 색상
+  const colorMap = {
+    walk: '#2c7be5',
+    bus: '#38a169',
+    taxi: '#e53e3e'
+  }
+  const color = colorMap[transportType.value] || '#2c7be5'
+
   const path = waypoints.map(p => new window.kakao.maps.LatLng(p.lat, p.lng))
   const polyline = new window.kakao.maps.Polyline({
     path,
     strokeWeight: 5,
-    strokeColor: '#2c7be5',
+    strokeColor: color,
     strokeOpacity: 0.8,
   })
   polyline.setMap(map)
@@ -153,7 +168,7 @@ const drawRoute = (data) => {
   path.forEach(p => bounds.extend(p))
   map.setBounds(bounds)
 
-  // 주변 시설 마커 표시
+  // 주변 시설 마커
   if (data.nearby) {
     drawNearbyMarkers(data.nearby)
   }
@@ -161,7 +176,6 @@ const drawRoute = (data) => {
 
 // 주변 시설 마커
 const drawNearbyMarkers = (nearby) => {
-  // 신호등
   nearby.traffic_lights?.forEach(tl => {
     const marker = new window.kakao.maps.Marker({
       position: new window.kakao.maps.LatLng(tl.lat, tl.lng),
@@ -171,7 +185,6 @@ const drawNearbyMarkers = (nearby) => {
     markers.push(marker)
   })
 
-  // 편의시설
   nearby.facilities?.forEach(f => {
     const marker = new window.kakao.maps.Marker({
       position: new window.kakao.maps.LatLng(f.lat, f.lng),
@@ -220,13 +233,25 @@ const formatDistance = (meters) => {
     <div class="side-panel">
       <h2>경로 탐색</h2>
 
+      <!-- 이동 수단 선택 -->
+      <div class="transport-bar">
+        <button
+          v-for="opt in transportOptions"
+          :key="opt.value"
+          :class="['transport-btn', { active: transportType === opt.value }]"
+          @click="transportType = opt.value"
+        >
+          {{ opt.label }}
+        </button>
+      </div>
+
       <!-- 출발지 -->
       <div class="search-box">
         <input
           v-model="originQuery"
           type="text"
           placeholder="출발지 검색"
-          @input="searchAddress(originQuery, 'origin')"
+          @keyup="searchAddress(originQuery, 'origin')"
         />
         <ul v-if="originSuggestions.length" class="suggestions">
           <li
@@ -246,7 +271,7 @@ const formatDistance = (meters) => {
           v-model="destQuery"
           type="text"
           placeholder="목적지 검색"
-          @input="searchAddress(destQuery, 'dest')"
+          @keyup="searchAddress(destQuery, 'dest')"
         />
         <ul v-if="destSuggestions.length" class="suggestions">
           <li
@@ -270,6 +295,10 @@ const formatDistance = (meters) => {
       <div v-if="routeResult" class="route-result">
         <h3>경로 정보</h3>
         <div class="route-info">
+          <div class="info-item">
+            <span class="label">이동 수단</span>
+            <span class="value">{{ transportOptions.find(t => t.value === transportType)?.label }}</span>
+          </div>
           <div class="info-item">
             <span class="label">거리</span>
             <span class="value">{{ formatDistance(routeResult.route.distance) }}</span>
@@ -335,6 +364,26 @@ h2 {
   font-size: 18px;
   color: #2c7be5;
   font-weight: bold;
+}
+.transport-bar {
+  display: flex;
+  gap: 8px;
+}
+.transport-btn {
+  flex: 1;
+  padding: 8px 4px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background: white;
+  cursor: pointer;
+  font-size: 13px;
+  color: #666;
+  text-align: center;
+}
+.transport-btn.active {
+  background: #2c7be5;
+  color: white;
+  border-color: #2c7be5;
 }
 .search-box {
   position: relative;
@@ -465,7 +514,6 @@ h2 {
 .map {
   flex: 1;
 }
-
 @media (max-width: 768px) {
   .home {
     flex-direction: column;
