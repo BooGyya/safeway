@@ -50,6 +50,11 @@ const routes = [
     component: () => import('@/views/ChatbotView.vue'),
     meta: { requiresAuth: true }
   },
+  {
+    path: '/:pathMatch(.*)*',
+    name: 'NotFound',
+    component: () => import('@/views/NotFoundView.vue')
+  },
 ]
 
 const router = createRouter({
@@ -68,3 +73,4 @@ router.beforeEach((to, _, next) => {
 })
 
 export default router
+
