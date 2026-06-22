@@ -1,11 +1,13 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
+import { useMapStore } from '@/stores/map'
 import { authAPI } from '@/api/auth'
 import { routeAPI } from '@/api/routes'
 import { useRouter } from 'vue-router'
 
 const auth = useAuthStore()
+const mapStore = useMapStore()
 const router = useRouter()
 
 const profile = ref(null)
@@ -126,6 +128,22 @@ const handleDeleteFavorite = async (id) => {
   } catch {
     alert('삭제에 실패했습니다.')
   }
+}
+
+const goToRoute = (fav) => {
+  mapStore.setRoute(
+    {
+      name: fav.route.origin_name,
+      lat: fav.route.origin_lat,
+      lng: fav.route.origin_lng
+    },
+    {
+      name: fav.route.dest_name,
+      lat: fav.route.dest_lat,
+      lng: fav.route.dest_lng
+    }
+  )
+  router.push('/')
 }
 
 const handleDeleteAccount = async () => {
@@ -250,7 +268,7 @@ const formatDistance = (meters) => {
         <div v-if="favorites.length === 0" class="empty">즐겨찾기가 없어요.</div>
         <div v-else class="list-box">
           <div v-for="fav in favorites" :key="fav.id" class="list-item">
-            <div class="list-info">
+            <div class="list-info" @click="goToRoute(fav)" style="cursor:pointer">
               <span class="list-title">{{ fav.nickname || `${fav.route?.origin_name} → ${fav.route?.dest_name}` }}</span>
               <span class="list-sub">{{ fav.route?.origin_name }} → {{ fav.route?.dest_name }}</span>
             </div>

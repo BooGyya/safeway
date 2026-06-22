@@ -3,9 +3,12 @@ import { ref, onMounted } from 'vue'
 import { routeAPI } from '@/api/routes'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
+import { useMapStore } from '@/stores/map'
+
 
 const auth = useAuthStore()
 const router = useRouter()
+const mapStore = useMapStore()
 
 // 지도 관련
 const mapContainer = ref(null)
@@ -35,6 +38,17 @@ onMounted(() => {
           level: 5
         }
         map = new window.kakao.maps.Map(mapContainer.value, options)
+
+        // 즐겨찾기에서 넘어온 경우 자동 경로 탐색
+        if (mapStore.pendingRoute) {
+          const { origin, dest } = mapStore.pendingRoute
+          originResult.value = origin
+          originQuery.value = origin.name
+          destResult.value = dest
+          destQuery.value = dest.name
+          mapStore.clearRoute()
+          searchRoute()
+        }
       })
     }
   }, 100)
