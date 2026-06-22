@@ -127,6 +127,7 @@ def get_weather_info(lat, lng):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def search_route(request):
+    transport_type = request.data.get('transport_type', 'walk')
     origin_lat = request.data.get('origin_lat')
     origin_lng = request.data.get('origin_lng')
     origin_name = request.data.get('origin_name', '출발지')
@@ -145,7 +146,13 @@ def search_route(request):
 
     # TMAP 보행자 경로 탐색
     user_speed = request.user.walk_speed if request.user.is_authenticated else 1.0
-    tmap_data = get_tmap_route(origin_lat, origin_lng, dest_lat, dest_lng, speed=user_speed)
+
+    if transport_type == 'walk':
+        tmap_data = get_tmap_route(origin_lat, origin_lng, dest_lat, dest_lng, speed=user_speed)
+    else:
+        # 버스/택시는 카카오 모빌리티 API 사용 (추후 연동)
+        # 현재는 도보로 대체
+        tmap_data = get_tmap_route(origin_lat, origin_lng, dest_lat, dest_lng, speed=user_speed)
     
     waypoints = []
     distance = 0
@@ -290,6 +297,7 @@ def search_route(request):
         'weather': weather,
         'weather_applied': weather_applied,
         'nearby': nearby,
+        'transport_type': transport_type,
     }, status=status.HTTP_201_CREATED)
 
 
