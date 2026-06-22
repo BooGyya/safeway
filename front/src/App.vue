@@ -1,9 +1,12 @@
 <script setup>
-import { RouterView } from 'vue-router'
+import AppHeader from '@/components/common/AppHeader.vue'
 </script>
 
 <template>
-  <RouterView />
+  <AppHeader />
+  <main>
+    <RouterView />
+  </main>
 </template>
 
 <style>
@@ -16,5 +19,9 @@ import { RouterView } from 'vue-router'
 body {
   font-family: 'Noto Sans KR', sans-serif;
   background-color: #f5f5f5;
+}
+
+main {
+  min-height: calc(100vh - 60px);
 }
 </style>
