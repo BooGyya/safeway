@@ -10,15 +10,13 @@ export const useAuthStore = defineStore('auth', () => {
   const isAdmin = computed(() => user.value?.is_staff || false)
   const fontSize = computed(() => user.value?.font_size || 'medium')
 
-  // 글씨 크기 적용
   const applyFontSize = (size) => {
     const root = document.documentElement
-    if (size === 'small') root.style.fontSize = '14px'
-    else if (size === 'medium') root.style.fontSize = '16px'
-    else if (size === 'large') root.style.fontSize = '18px'
+    if (size === 'small') root.style.setProperty('--base-font-size', '14px')
+    else if (size === 'large') root.style.setProperty('--base-font-size', '18px')
+    else root.style.setProperty('--base-font-size', '16px')
   }
 
-  // fontSize 변경 감지
   watch(fontSize, (newSize) => {
     applyFontSize(newSize)
   }, { immediate: true })
@@ -40,7 +38,7 @@ export const useAuthStore = defineStore('auth', () => {
       user.value = null
       accessToken.value = null
       localStorage.clear()
-      document.documentElement.style.fontSize = '16px'
+      document.documentElement.style.setProperty('--base-font-size', '16px')
     }
   }
 

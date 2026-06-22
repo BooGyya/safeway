@@ -51,6 +51,13 @@ const passwordForm = ref({
   new_password: ''
 })
 
+const applyFontSize = (size) => {
+  const root = document.documentElement
+  if (size === 'small') root.style.fontSize = '14px'
+  else if (size === 'large') root.style.fontSize = '18px'
+  else root.style.fontSize = '16px'
+}
+
 onMounted(async () => {
   await fetchMyPage()
   await fetchProfile()
@@ -79,6 +86,7 @@ const fetchProfile = async () => {
       voice_volume: data.voice_volume,
       sos_number: data.sos_number || ''
     }
+    applyFontSize(data.font_size)
   } catch {
     console.error('프로필 로드 실패')
   }
@@ -108,12 +116,7 @@ const handleUpdateProfile = async () => {
   try {
     await authAPI.updateProfile(form.value)
     await auth.fetchProfile()
-
-    const root = document.documentElement
-    if (form.value.font_size === 'small') root.style.fontSize = '14px'
-    else if (form.value.font_size === 'large') root.style.fontSize = '18px'
-    else root.style.fontSize = '16px'
-
+    applyFontSize(form.value.font_size)
     successMsg.value = '프로필이 저장되었습니다!'
     setTimeout(() => successMsg.value = '', 3000)
   } catch {
@@ -214,8 +217,6 @@ const formatDate = (dateStr) => {
 
       <!-- 마이페이지 홈 -->
       <div v-if="activeTab === 'mypage' && mypage" class="tab-content">
-
-        <!-- 유저 기본 정보 -->
         <div class="user-info-box">
           <div class="user-avatar">{{ mypage.user?.username?.charAt(0)?.toUpperCase() }}</div>
           <div class="user-details">
@@ -225,7 +226,6 @@ const formatDate = (dateStr) => {
           </div>
         </div>
 
-        <!-- 통계 -->
         <div class="stats-grid">
           <div class="stat-item">
             <span class="stat-value">{{ mypage.stats?.route_count || 0 }}</span>
@@ -249,23 +249,17 @@ const formatDate = (dateStr) => {
           </div>
         </div>
 
-        <!-- 최근 경로 -->
         <div class="section-box">
           <h4>🗺 최근 경로</h4>
           <div v-if="mypage.recent_routes?.length === 0" class="empty-small">없어요</div>
           <div v-else class="small-list">
-            <div
-              v-for="route in mypage.recent_routes"
-              :key="route.id"
-              class="small-item"
-            >
+            <div v-for="route in mypage.recent_routes" :key="route.id" class="small-item">
               <span>{{ route.origin_name }} → {{ route.dest_name }}</span>
               <span class="small-sub">{{ formatDistance(route.distance) }} · {{ formatDuration(route.duration) }}</span>
             </div>
           </div>
         </div>
 
-        <!-- 내가 쓴 글 -->
         <div class="section-box">
           <h4>📝 최근 게시글</h4>
           <div v-if="mypage.recent_posts?.length === 0" class="empty-small">없어요</div>
@@ -282,7 +276,6 @@ const formatDate = (dateStr) => {
           </div>
         </div>
 
-        <!-- 내가 쓴 댓글 -->
         <div class="section-box">
           <h4>💬 최근 댓글</h4>
           <div v-if="mypage.recent_comments?.length === 0" class="empty-small">없어요</div>
@@ -311,9 +304,7 @@ const formatDate = (dateStr) => {
                 :key="opt.value"
                 :class="['opt-btn', { active: form.user_type === opt.value }]"
                 @click="form.user_type = opt.value"
-              >
-                {{ opt.label }}
-              </button>
+              >{{ opt.label }}</button>
             </div>
           </div>
 
@@ -330,9 +321,7 @@ const formatDate = (dateStr) => {
                 :key="opt.value"
                 :class="['opt-btn', { active: form.font_size === opt.value }]"
                 @click="form.font_size = opt.value"
-              >
-                {{ opt.label }}
-              </button>
+              >{{ opt.label }}</button>
             </div>
           </div>
 
@@ -344,9 +333,7 @@ const formatDate = (dateStr) => {
                 :key="opt.value"
                 :class="['opt-btn', { active: form.voice_type === opt.value }]"
                 @click="form.voice_type = opt.value"
-              >
-                {{ opt.label }}
-              </button>
+              >{{ opt.label }}</button>
             </div>
           </div>
 
@@ -368,9 +355,7 @@ const formatDate = (dateStr) => {
 
           <hr />
 
-          <button @click="handleDeleteAccount" class="delete-account-btn">
-            회원 탈퇴
-          </button>
+          <button @click="handleDeleteAccount" class="delete-account-btn">회원 탈퇴</button>
         </div>
       </div>
 
@@ -465,8 +450,6 @@ h2 {
   flex-direction: column;
   gap: 20px;
 }
-
-/* 유저 정보 */
 .user-info-box {
   display: flex;
   align-items: center;
@@ -507,8 +490,6 @@ h2 {
   border-radius: 20px;
   font-size: 12px;
 }
-
-/* 통계 */
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
@@ -532,8 +513,6 @@ h2 {
   font-size: 12px;
   color: #888;
 }
-
-/* 섹션 */
 .section-box {
   display: flex;
   flex-direction: column;
@@ -574,8 +553,6 @@ h2 {
   color: #aaa;
   padding: 8px 0;
 }
-
-/* 폼 */
 .form-box {
   display: flex;
   flex-direction: column;
