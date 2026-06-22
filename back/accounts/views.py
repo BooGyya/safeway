@@ -294,3 +294,40 @@ def mypage(request):
             for c in my_comments
         ],
     })
+
+# 다른 사용자 프로필 조회
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def user_profile(request, user_id):
+    from django.shortcuts import get_object_or_404
+    target_user = get_object_or_404(User, id=user_id)
+    
+    from community.models import Post, Follow
+    
+    is_following = False
+    if request.user.is_authenticated:
+        is_following = Follow.objects.filter(
+            follower=request.user,
+            following=target_user
+        ).exists()
+    
+    return Response({
+        'id': target_user.id,
+        'username': target_user.username,
+        'profile_image': request.build_absolute_uri(target_user.profile_image.url) if target_user.profile_image else None,
+        'user_type': target_user.user_type,
+        'post_count': Post.objects.filter(user=target_user).count(),
+        'following_count': Follow.objects.filter(follower=target_user).count(),
+        'followers_count': Follow.objects.filter(following=target_user).count(),
+        'is_following': is_following,
+        'recent_posts': [
+            {
+                'id': p.id,
+                'title': p.title,
+                'category': p.category,
+                'reliability_score': p.reliability_score,
+                'created_at': p.created_at,
+            }
+            for p in Post.objects.filter(user=target_user).order_by('-created_at')[:5]
+        ]
+    })
