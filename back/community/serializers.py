@@ -55,12 +55,8 @@ class PostSerializer(serializers.ModelSerializer):
 
     def get_is_following(self, obj):
         request = self.context.get('request')
-<<<<<<< HEAD
-        if request and request.user.is_authenticated and request.user != obj.user:
-=======
         if request and request.user.is_authenticated:
             from .models import Follow
->>>>>>> 95db37f8280eaf9303fa343a0fc2643bd8d5d899
             return Follow.objects.filter(
                 follower=request.user,
                 following=obj.user
