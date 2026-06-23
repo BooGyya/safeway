@@ -4,7 +4,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 import requests
 import os
-
+from django.shortcuts import get_object_or_404
 from .models import TrafficLight, Facility, Elevator, SupportCenter
 from .serializers import (
     TrafficLightSerializer, FacilitySerializer,
@@ -352,4 +352,12 @@ def search_facilities(request):
     facilities = facilities[:20]
 
     serializer = FacilitySerializer(facilities, many=True)
+    return Response(serializer.data)
+
+# 시설 상세 조회
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def facility_detail(request, facility_id):
+    facility = get_object_or_404(Facility, id=facility_id)
+    serializer = FacilitySerializer(facility)
     return Response(serializer.data)
