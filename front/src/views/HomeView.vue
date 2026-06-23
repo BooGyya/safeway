@@ -997,19 +997,19 @@ const formatDistance = (meters) => {
 
       <div ref="mapContainer" class="map"></div>
 
-      <!-- 지도 컨트롤 버튼 -->
+      <!-- SOS 버튼 (오른쪽 상단) -->
+      <button @click="sendSOS" class="sos-btn" title="SOS">SOS</button>
+
+      <!-- 지도 컨트롤 버튼 (오른쪽 하단) -->
       <div class="map-controls">
-        <button @click="sendSOS" class="control-btn sos-btn" title="SOS">
-            SOS
-        </button>
         <button @click="moveToCurrentLocation" class="control-btn location-btn" title="현재 위치">
-            📍
+          📍
         </button>
         <button @click="zoomIn" class="control-btn" title="확대">
-            +
+          +
         </button>
         <button @click="zoomOut" class="control-btn" title="축소">
-            −
+          −
         </button>
       </div>
     </div>
@@ -1345,14 +1345,23 @@ h2 {
   background: #259a60;
 }
 .sos-btn {
-  background: #e53e3e !important;
+  position: absolute;
+  top: 12px;  /* 60px → 12px */
+  right: 16px;
+  width: 48px;
+  height: 48px;
+  background: #e53e3e;
   color: white;
   font-weight: 700;
   font-size: 13px;
-  border: none !important;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  z-index: 10;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
 }
 .sos-btn:hover {
-  background: #c53030 !important;
+  background: #c53030;
 }
 
 /* 지도 클릭 위치 */
