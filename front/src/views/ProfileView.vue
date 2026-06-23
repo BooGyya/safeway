@@ -300,8 +300,15 @@ const formatDate = (dateStr) => {
           </div>
 
           <div class="form-group">
-            <label>보행 속도 (m/s): {{ form.walk_speed }}</label>
-            <input v-model="form.walk_speed" type="range" min="0.5" max="2.0" step="0.1" />
+            <label>보행 속도: {{ form.walk_speed }}m/s</label>
+            <input v-model.number="form.walk_speed" type="range" min="0.3" max="2.0" step="0.1" />
+            <div class="speed-guide">
+              <span :class="{ active: form.walk_speed <= 0.5 }">느림</span>
+              <span :class="{ active: form.walk_speed > 0.5 && form.walk_speed <= 1.0 }">보통</span>
+              <span :class="{ active: form.walk_speed > 1.0 && form.walk_speed <= 1.5 }">빠름</span>
+              <span :class="{ active: form.walk_speed > 1.5 }">매우 빠름</span>
+            </div>
+            <p class="speed-desc">보행 속도에 따라 경로 탐색 시 예상 이동시간이 변경됩니다.</p>
           </div>
 
           <div class="form-group">
@@ -658,6 +665,21 @@ hr {
   color: #aaa;
   padding: 40px;
   font-size: var(--base-font-size, 16px);
+}
+.speed-guide {
+  display: flex;
+  justify-content: space-between;
+  font-size: calc(var(--base-font-size, 16px) - 4px);
+  color: #bbb;
+}
+.speed-guide span.active {
+  color: #2eb872;
+  font-weight: 600;
+}
+.speed-desc {
+  font-size: calc(var(--base-font-size, 16px) - 4px);
+  color: #999;
+  margin: 0;
 }
 @media (max-width: 768px) {
   .profile-page { padding: 16px; }

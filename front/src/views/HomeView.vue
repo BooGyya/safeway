@@ -63,6 +63,19 @@ const transportOptions = [
   { value: 'taxi', label: '🚕 택시' },
 ]
 
+const userTypeOptions = [
+  { value: 'normal', label: '일반' },
+  { value: 'elderly', label: '노인' },
+  { value: 'disabled', label: '장애인' },
+  { value: 'wheelchair', label: '휠체어' },
+  { value: 'pregnant', label: '임산부' },
+]
+const selectedUserType = ref('normal')
+const walkSpeed = ref(1.0)
+const showRouteDetail = ref(false)
+const selectedDetailFacility = ref(null)
+let focusedMarker = null
+
 onMounted(() => {
   const checkKakao = setInterval(() => {
     if (window.kakao && window.kakao.maps) {
@@ -73,6 +86,11 @@ onMounted(() => {
           level: 5
         }
         map = new window.kakao.maps.Map(mapContainer.value, options)
+
+        if (auth.user) {
+          selectedUserType.value = auth.user.user_type || 'normal'
+          walkSpeed.value = auth.user.walk_speed || 1.0
+        }
 
         window.kakao.maps.event.addListener(map, 'click', (mouseEvent) => {
           if (pinnedOverlay) {
@@ -158,6 +176,8 @@ const searchRoute = async () => {
       dest_lng: destResult.value.lng,
       dest_name: destResult.value.name,
       transport_type: transportType.value,
+      user_type: selectedUserType.value,
+      walk_speed: walkSpeed.value,
     })
     routeResult.value = data
     drawRoute(data)
@@ -176,9 +196,9 @@ const drawRoute = (data) => {
   const path = waypoints.map(p => new window.kakao.maps.LatLng(p.lat, p.lng))
   const polyline = new window.kakao.maps.Polyline({
     path,
-    strokeWeight: 5,
-    strokeColor: '#2eb872',
-    strokeOpacity: 0.8,
+    strokeWeight: 7,
+    strokeColor: '#3366FF',
+    strokeOpacity: 0.9,
   })
   polyline.setMap(map)
   polylines.push(polyline)
@@ -489,6 +509,52 @@ const clearFacilityMarkers = () => {
   facilityMarkers = []
 }
 
+let focusedOverlay = null
+
+const focusFacilityOnMap = (facility) => {
+  if (focusedMarker) {
+    focusedMarker.setMap(null)
+    focusedMarker = null
+  }
+  if (focusedOverlay) {
+    focusedOverlay.setMap(null)
+    focusedOverlay = null
+  }
+
+  if (selectedDetailFacility.value?.id === facility.id) {
+    selectedDetailFacility.value = null
+    return
+  }
+
+  selectedDetailFacility.value = facility
+  if (!facility.lat || !facility.lng) return
+
+  const position = new window.kakao.maps.LatLng(facility.lat, facility.lng)
+  const markerImage = createCategoryMarkerImage('#FF6B00')
+
+  focusedMarker = new window.kakao.maps.Marker({ position, map, image: markerImage, zIndex: 100 })
+
+  const typeLabel = facilityTypeLabel(facility.facility_type)
+  const category = {
+    color: '#FF6B00',
+    icon: '♿',
+    label: typeLabel || '편의시설',
+  }
+  const placeData = {
+    name: facility.name,
+    address: facility.address || '',
+    phone: '',
+    distance: '',
+    place_url: '',
+  }
+  focusedOverlay = createPlaceOverlay(placeData, category, position)
+  focusedOverlay.setMap(map)
+  pinnedOverlay = focusedOverlay
+
+  map.setCenter(position)
+  map.setLevel(3)
+}
+
 const facilityTypeLabel = (type) => {
   const map = { ramp: '경사로', elevator: '엘리베이터', braille: '점자블록', toilet: '장애인 화장실', parking: '장애인 주차구역', other: '기타' }
   return map[type] || type || ''
@@ -626,6 +692,25 @@ const formatDistance = (meters) => {
           </button>
         </div>
 
+        <div class="user-type-bar">
+          <label class="bar-label">교통약자 유형</label>
+          <div class="user-type-options">
+            <button
+              v-for="opt in userTypeOptions"
+              :key="opt.value"
+              :class="['type-btn', { active: selectedUserType === opt.value }]"
+              @click="selectedUserType = opt.value"
+            >
+              {{ opt.label }}
+            </button>
+          </div>
+        </div>
+
+        <div class="speed-bar">
+          <label class="bar-label">보행 속도: {{ walkSpeed }}m/s</label>
+          <input v-model.number="walkSpeed" type="range" min="0.3" max="2.0" step="0.1" class="speed-slider" />
+        </div>
+
         <div class="search-box">
           <input
             v-model="originQuery"
@@ -696,6 +781,39 @@ const formatDistance = (meters) => {
             <p>🚦 신호등 {{ routeResult.nearby.traffic_lights?.length || 0 }}개</p>
             <p>♿ 편의시설 {{ routeResult.nearby.facilities?.length || 0 }}개</p>
             <p>🏥 지원센터 {{ routeResult.nearby.support_centers?.length || 0 }}개</p>
+          </div>
+
+          <button class="detail-toggle" @click="showRouteDetail = !showRouteDetail">
+            {{ showRouteDetail ? '상세 접기 ▲' : '경로 상세보기 ▼' }}
+          </button>
+
+          <div v-if="showRouteDetail && routeResult.nearby" class="route-detail-section">
+            <div v-if="routeResult.nearby.facilities?.length" class="detail-group">
+              <h4>♿ 주변 편의시설</h4>
+              <div
+                v-for="f in routeResult.nearby.facilities"
+                :key="f.id"
+                :class="['detail-item', 'clickable', { selected: selectedDetailFacility?.id === f.id }]"
+                @click="focusFacilityOnMap(f)"
+              >
+                <span class="detail-item-name">{{ f.name }}</span>
+                <span v-if="f.facility_type && f.facility_type !== 'other'" class="detail-item-type">{{ facilityTypeLabel(f.facility_type) }}</span>
+              </div>
+            </div>
+            <div v-if="routeResult.nearby.traffic_lights?.length" class="detail-group">
+              <h4>🚦 주변 신호등</h4>
+              <div v-for="tl in routeResult.nearby.traffic_lights" :key="tl.id" class="detail-item">
+                <span class="detail-item-name">{{ tl.road_nm || tl.name }}</span>
+                <span v-if="tl.has_audio" class="audio-badge">음향</span>
+              </div>
+            </div>
+            <div v-if="routeResult.nearby.support_centers?.length" class="detail-group">
+              <h4>🏥 이동지원센터</h4>
+              <div v-for="sc in routeResult.nearby.support_centers" :key="sc.id" class="detail-item">
+                <span class="detail-item-name">{{ sc.name }}</span>
+                <span class="detail-item-sub">{{ sc.phone }}</span>
+              </div>
+            </div>
           </div>
 
           <button v-if="auth.isLoggedIn" class="favorite-btn" @click="addFavorite">
@@ -1230,6 +1348,113 @@ h2 {
 }
 .clicked-link-btn:hover {
   background: #fdd835;
+}
+
+/* 교통약자 유형 */
+.user-type-bar, .speed-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.bar-label {
+  font-size: calc(var(--base-font-size, 16px) - 3px);
+  font-weight: 600;
+  color: #555;
+}
+.user-type-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.type-btn {
+  padding: 5px 12px;
+  border: 1px solid #ddd;
+  border-radius: 16px;
+  background: white;
+  cursor: pointer;
+  font-size: calc(var(--base-font-size, 16px) - 4px);
+  color: #666;
+}
+.type-btn.active {
+  background: #2eb872;
+  color: white;
+  border-color: #2eb872;
+}
+.speed-slider {
+  width: 100%;
+  accent-color: #2eb872;
+}
+.detail-toggle {
+  padding: 8px;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: calc(var(--base-font-size, 16px) - 3px);
+  color: #666;
+  text-align: center;
+}
+.detail-toggle:hover {
+  background: #f9f9f9;
+}
+.route-detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+.detail-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.detail-group h4 {
+  font-size: calc(var(--base-font-size, 16px) - 2px);
+  font-weight: 700;
+  color: #333;
+  margin: 0;
+}
+.detail-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+  background: white;
+  border-radius: 6px;
+  font-size: calc(var(--base-font-size, 16px) - 3px);
+  transition: all 0.15s;
+}
+.detail-item.clickable {
+  cursor: pointer;
+}
+.detail-item.clickable:hover {
+  background: #e6f7ee;
+}
+.detail-item.selected {
+  background: #FF6B00;
+  color: white;
+}
+.detail-item.selected .detail-item-name {
+  color: white;
+}
+.detail-item.selected .detail-item-type {
+  color: rgba(255,255,255,0.8);
+}
+.detail-item-name {
+  color: #333;
+}
+.detail-item-type, .detail-item-sub {
+  color: #888;
+  font-size: calc(var(--base-font-size, 16px) - 4px);
+}
+.audio-badge {
+  background: #2eb872;
+  color: white;
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-size: calc(var(--base-font-size, 16px) - 5px);
+  font-weight: 600;
 }
 
 /* 시설 카테고리 */
