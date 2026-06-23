@@ -21,23 +21,25 @@ class CommentSerializer(serializers.ModelSerializer):
 
 class PostSerializer(serializers.ModelSerializer):
     username = serializers.CharField(source='user.username', read_only=True)
+    user_id = serializers.IntegerField(source='user.id', read_only=True)
     like_count = serializers.IntegerField(source='likes.count', read_only=True)
     comment_count = serializers.IntegerField(source='comments.count', read_only=True)
     is_liked = serializers.SerializerMethodField()
+    is_following = serializers.SerializerMethodField()
     images = PostImageSerializer(many=True, read_only=True)
 
     class Meta:
         model = Post
         fields = [
-            'id', 'username', 'title', 'content',
+            'id', 'username', 'user_id', 'title', 'content',
             'category', 'latitude', 'longitude', 'address',
             'reliability_score', 'is_trusted', 'view_count',
-            'like_count', 'comment_count', 'is_liked',
+            'like_count', 'comment_count', 'is_liked', 'is_following',
             'images',
             'created_at', 'updated_at'
         ]
         read_only_fields = [
-            'id', 'username', 'reliability_score',
+            'id', 'username', 'user_id', 'reliability_score',
             'is_trusted', 'view_count', 'created_at', 'updated_at'
         ]
 
@@ -47,6 +49,15 @@ class PostSerializer(serializers.ModelSerializer):
             return PostLike.objects.filter(
                 post=obj,
                 user=request.user
+            ).exists()
+        return False
+
+    def get_is_following(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated and request.user != obj.user:
+            return Follow.objects.filter(
+                follower=request.user,
+                following=obj.user
             ).exists()
         return False
 
