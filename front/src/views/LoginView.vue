@@ -30,8 +30,8 @@ const handleLogin = async () => {
 <template>
   <div class="login-page">
     <div class="login-box">
-      <h1>🦽 SafeWay</h1>
-      <p class="subtitle">교통약자 맞춤 안전 경로 서비스</p>
+      <img src="@/assets/logo.png" alt="SafeWay" class="logo" />
+      <p class="subtitle">교통약자 맞춤 안전 경로 추천 서비스</p>
 
       <div class="form">
         <input
@@ -83,9 +83,9 @@ const handleLogin = async () => {
   max-width: 400px;
   text-align: center;
 }
-h1 {
-  font-size: calc(var(--base-font-size, 16px) + 12px);
-  color: #2eb872;
+.logo {
+  width: 120px;
+  height: auto;
   margin-bottom: 8px;
 }
 .subtitle {
