@@ -616,15 +616,20 @@ const handleMapClick = (latLng) => {
 
         nextTick(() => {
           if (previewMapContainer.value) {
-            const previewPos = new window.kakao.maps.LatLng(lat, lng)
-            previewMap = new window.kakao.maps.Map(previewMapContainer.value, {
-              center: previewPos,
-              level: 4,
-              draggable: false,
-              scrollwheel: false,
-              disableDoubleClickZoom: true,
+            const roadview = new window.kakao.maps.Roadview(previewMapContainer.value)
+            const roadviewClient = new window.kakao.maps.RoadviewClient()
+            const position = new window.kakao.maps.LatLng(lat, lng)
+
+            roadviewClient.getNearestPanoId(position, 50, (panoId) => {
+              if (panoId) {
+                roadview.setPanoId(panoId, position)
+              } else {
+                previewMapContainer.value.innerHTML = `
+                  <div style="display:flex;align-items:center;justify-content:center;height:100%;color:#999;font-size:13px;">
+                    📷 로드뷰 정보가 없어요
+                  </div>`
+              }
             })
-            new window.kakao.maps.Marker({ position: previewPos, map: previewMap })
           }
         })
       },
@@ -1332,7 +1337,7 @@ h2 {
 }
 .clicked-place-img {
   width: 100%;
-  height: 150px;
+  height: 120px;
   border-radius: 8px;
   background: #eee;
   overflow: hidden;
