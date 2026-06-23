@@ -274,7 +274,7 @@ const formatDate = (dateStr) => {
         </div>
 
         <div class="section-box">
-          <h4>🗺 최근 경로</h4>
+          <h4>🐾 최근 경로</h4>
           <div v-if="mypage.recent_routes?.length === 0" class="empty-small">없어요</div>
           <div v-else class="small-list">
             <div v-for="route in mypage.recent_routes" :key="route.id" class="small-item">
@@ -284,12 +284,13 @@ const formatDate = (dateStr) => {
           </div>
         </div>
 
+        <!-- 최근 게시글 -->
         <div class="section-box">
           <h4>📝 최근 게시글</h4>
-          <div v-if="mypage.recent_posts?.length === 0" class="empty-small">없어요</div>
+          <div v-if="mypage.my_posts?.length === 0" class="empty-small">없어요</div>
           <div v-else class="small-list">
             <div
-              v-for="post in mypage.recent_posts"
+              v-for="post in mypage.my_posts"
               :key="post.id"
               class="small-item clickable"
               @click="router.push(`/community/${post.id}`)"
@@ -300,15 +301,16 @@ const formatDate = (dateStr) => {
           </div>
         </div>
 
+        <!-- 최근 댓글 -->
         <div class="section-box">
           <h4>💬 최근 댓글</h4>
-          <div v-if="mypage.recent_comments?.length === 0" class="empty-small">없어요</div>
+          <div v-if="mypage.my_comments?.length === 0" class="empty-small">없어요</div>
           <div v-else class="small-list">
             <div
-              v-for="comment in mypage.recent_comments"
+              v-for="comment in mypage.my_comments"
               :key="comment.id"
               class="small-item clickable"
-              @click="router.push(`/community/${comment.post}`)"
+              @click="router.push(`/community/${comment.post_id}`)"
             >
               <span>{{ comment.content }}</span>
               <span class="small-sub">{{ formatDate(comment.created_at) }}</span>
