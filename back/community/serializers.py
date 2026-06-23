@@ -9,14 +9,15 @@ class PostImageSerializer(serializers.ModelSerializer):
 
 class CommentSerializer(serializers.ModelSerializer):
     username = serializers.CharField(source='user.username', read_only=True)
+    user_id = serializers.IntegerField(source='user.id', read_only=True)
 
     class Meta:
         model = Comment
         fields = [
-            'id', 'username', 'content',
+            'id', 'username', 'user_id', 'content',
             'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'username', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'username', 'user_id', 'created_at', 'updated_at']
 
 
 class PostSerializer(serializers.ModelSerializer):
@@ -54,7 +55,12 @@ class PostSerializer(serializers.ModelSerializer):
 
     def get_is_following(self, obj):
         request = self.context.get('request')
+<<<<<<< HEAD
         if request and request.user.is_authenticated and request.user != obj.user:
+=======
+        if request and request.user.is_authenticated:
+            from .models import Follow
+>>>>>>> 95db37f8280eaf9303fa343a0fc2643bd8d5d899
             return Follow.objects.filter(
                 follower=request.user,
                 following=obj.user
