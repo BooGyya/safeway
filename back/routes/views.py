@@ -184,8 +184,10 @@ def search_route(request):
     origin_lat, origin_lng = float(origin_lat), float(origin_lng)
     dest_lat, dest_lng = float(dest_lat), float(dest_lng)
 
-    user_speed = request.user.walk_speed if request.user.is_authenticated else 1.0
-    user_type = request.user.user_type if request.user.is_authenticated else 'normal'
+    user_speed = float(request.data.get('walk_speed',
+        request.user.walk_speed if request.user.is_authenticated else 1.0))
+    user_type = request.data.get('user_type',
+        request.user.user_type if request.user.is_authenticated else 'normal')
 
     waypoints = []
     distance = 0
