@@ -133,7 +133,8 @@ def send_sos(request):
     
     # 기본 메시지
     if not message_text:
-        message_text = f'[SafeWay SOS] {user.username}님이 도움을 요청합니다.'
+        name = user.nickname or user.username
+        message_text = f'[SafeWay SOS] {name}님이 도움을 요청합니다. 즉시 연락 바랍니다.'
     
     if latitude and longitude:
         message_text += f'\n위치: https://maps.google.com/?q={latitude},{longitude}'
