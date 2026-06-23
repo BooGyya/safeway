@@ -190,18 +190,19 @@ def search_route(request):
     origin_lat, origin_lng = float(origin_lat), float(origin_lng)
     dest_lat, dest_lng = float(dest_lat), float(dest_lng)
 
-    # TMAP 보행자 경로 탐색
     user_speed = request.user.walk_speed if request.user.is_authenticated else 1.0
     user_type = request.user.user_type if request.user.is_authenticated else 'normal'
 
     waypoints = []
     distance = 0
     duration = 0
+    route_error = None
 
     if transport_type == 'bus':
         tmap_data = get_tmap_transit_route(origin_lat, origin_lng, dest_lat, dest_lng)
-        # 대중교통 응답 파싱
-        if tmap_data and tmap_data.get('metaData'):
+        if not tmap_data or not tmap_data.get('metaData'):
+            route_error = '대중교통 경로를 찾을 수 없습니다.'
+        else:
             plan = tmap_data['metaData'].get('plan', {})
             itineraries = plan.get('itineraries', [])
             if itineraries:
@@ -209,13 +210,10 @@ def search_route(request):
                 distance = best.get('totalDistance', 0)
                 duration = best.get('totalTime', 0)
                 for leg in best.get('legs', []):
-                    # 출발/도착 좌표 추가
                     start = leg.get('start', {})
                     end = leg.get('end', {})
                     if start.get('lat') and start.get('lon'):
                         waypoints.append({'lat': start['lat'], 'lng': start['lon']})
-                    
-                    # steps의 linestring 파싱
                     steps = leg.get('steps', [])
                     for step in steps:
                         linestring = step.get('linestring', '')
@@ -230,12 +228,16 @@ def search_route(request):
                                         })
                                     except ValueError:
                                         pass
-                    
                     if end.get('lat') and end.get('lon'):
                         waypoints.append({'lat': end['lat'], 'lng': end['lon']})
+            else:
+                route_error = '대중교통 경로를 찾을 수 없습니다.'
+
     elif transport_type == 'taxi':
         tmap_data = get_kakao_car_route(origin_lat, origin_lng, dest_lat, dest_lng)
-        if tmap_data and tmap_data.get('routes'):
+        if not tmap_data or not tmap_data.get('routes'):
+            route_error = '택시 경로를 찾을 수 없습니다.'
+        else:
             route_data_kakao = tmap_data['routes'][0]
             distance = route_data_kakao.get('summary', {}).get('distance', 0)
             duration = route_data_kakao.get('summary', {}).get('duration', 0)
@@ -247,24 +249,31 @@ def search_route(request):
                             'lat': vertexes[i+1],
                             'lng': vertexes[i],
                         })
+
     else:  # walk
         tmap_data = get_tmap_route(origin_lat, origin_lng, dest_lat, dest_lng, speed=user_speed, user_type=user_type)
-        if tmap_data and tmap_data.get('features'):
+        if not tmap_data or not tmap_data.get('features'):
+            route_error = '도보 경로를 찾을 수 없습니다.'
+        else:
             for feature in tmap_data['features']:
                 geometry = feature.get('geometry', {})
                 properties = feature.get('properties', {})
-
                 if properties.get('totalDistance'):
                     distance = properties['totalDistance']
                 if properties.get('totalTime'):
                     duration = properties['totalTime']
-
                 if geometry.get('type') == 'LineString':
                     for coord in geometry.get('coordinates', []):
                         waypoints.append({
                             'lat': coord[1],
                             'lng': coord[0],
                         })
+
+    if route_error:
+        return Response(
+            {'error': route_error},
+            status=status.HTTP_400_BAD_REQUEST
+        )
 
     # 날씨 정보 조회
     weather = get_weather_info(origin_lat, origin_lng)
@@ -274,7 +283,7 @@ def search_route(request):
         bad_weather = ['Rain', 'Snow', 'Thunderstorm', 'Drizzle']
         if weather['weather'] in bad_weather or weather['wind_speed'] > 10:
             weather_applied = True
-            duration = int(duration * 1.2)  # 20% 추가 소요
+            duration = int(duration * 1.2)
 
     # 안전도 점수 계산
     safety_score = calculate_safety_score(waypoints, user_type)
@@ -312,6 +321,7 @@ def search_route(request):
             'waypoints': waypoints,
             'weather_applied': weather_applied,
         }
+
     # 경로 주변 편의시설 정보 수집
     nearby = {
         'traffic_lights': [],
@@ -320,14 +330,12 @@ def search_route(request):
     }
 
     if waypoints:
-        # 경로 전체 범위 계산
         lats = [wp['lat'] for wp in waypoints]
         lngs = [wp['lng'] for wp in waypoints]
         min_lat, max_lat = min(lats), max(lats)
         min_lng, max_lng = min(lngs), max(lngs)
-        padding = 0.002  # 약 200m 여유
+        padding = 0.002
 
-        # 음향신호기
         lights = TrafficLight.objects.filter(
             lat__range=(min_lat - padding, max_lat + padding),
             lng__range=(min_lng - padding, max_lng + padding),
@@ -346,7 +354,6 @@ def search_route(request):
             for l in lights
         ]
 
-        # 편의시설
         facilities = Facility.objects.filter(
             lat__range=(min_lat - padding, max_lat + padding),
             lng__range=(min_lng - padding, max_lng + padding),
@@ -364,7 +371,6 @@ def search_route(request):
             for f in facilities
         ]
 
-        # 교통약자 이동지원센터
         centers = SupportCenter.objects.filter(
             lat__range=(min_lat - padding, max_lat + padding),
             lng__range=(min_lng - padding, max_lng + padding),
