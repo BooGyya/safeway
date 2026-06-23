@@ -30,7 +30,7 @@ const fetchPosts = async () => {
   loading.value = true
   try {
     const { data } = await communityAPI.getPosts(sort.value)
-    posts.value = data
+    posts.value = data.results  // data → data.results
   } catch {
     console.error('게시글 로드 실패')
   } finally {
