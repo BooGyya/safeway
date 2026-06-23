@@ -117,27 +117,35 @@ const closeMenu = () => {
   text-decoration: none;
   font-size: var(--base-font-size, 16px);
 }
+.username {
+  color: white;
+  font-size: calc(var(--base-font-size, 16px) - 2px);
+}
 .auth-buttons button {
   background: transparent;
   border: 1px solid white;
   color: white;
-  padding: 6px 14px;
+  padding: 0 14px;
   border-radius: 6px;
   cursor: pointer;
   font-size: calc(var(--base-font-size, 16px) - 2px);
-}
-.username {
-  color: white;
-  font-size: calc(var(--base-font-size, 16px) - 2px);
+  font-family: 'Poppins', sans-serif;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
 }
 .mypage-btn {
   background: transparent;
   border: 1px solid white;
   color: white !important;
-  padding: 6px 14px;
+  padding: 0 14px;
   border-radius: 6px;
   font-size: calc(var(--base-font-size, 16px) - 2px);
+  font-family: 'Poppins', sans-serif;
   text-decoration: none !important;
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
 }
 
 /* 햄버거 버튼 */
