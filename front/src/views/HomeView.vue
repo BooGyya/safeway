@@ -198,6 +198,39 @@ const addFavorite = async () => {
   }
 }
 
+// 현재 위치로 이동
+const moveToCurrentLocation = () => {
+  if (!navigator.geolocation) {
+    alert('위치 정보를 지원하지 않는 브라우저입니다.')
+    return
+  }
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      const lat = pos.coords.latitude
+      const lng = pos.coords.longitude
+      const position = new window.kakao.maps.LatLng(lat, lng)
+      map.setCenter(position)
+      map.setLevel(3)
+    },
+    () => alert('위치 정보를 가져오지 못했습니다.'),
+    {
+      enableHighAccuracy: true,  // GPS 우선 사용
+      timeout: 10000,
+      maximumAge: 0
+    }
+  )
+}
+
+// 확대
+const zoomIn = () => {
+  map.setLevel(map.getLevel() - 1)
+}
+
+// 축소
+const zoomOut = () => {
+  map.setLevel(map.getLevel() + 1)
+}
+
 const formatDuration = (seconds) => {
   const min = Math.floor(seconds / 60)
   return min < 60 ? `${min}분` : `${Math.floor(min/60)}시간 ${min%60}분`
@@ -300,7 +333,23 @@ const formatDistance = (meters) => {
       </div>
     </div>
 
-    <div ref="mapContainer" class="map"></div>
+    <!-- 지도 -->
+    <div class="map-wrapper">
+      <div ref="mapContainer" class="map"></div>
+
+      <!-- 지도 컨트롤 버튼 -->
+      <div class="map-controls">
+        <button @click="moveToCurrentLocation" class="control-btn location-btn" title="현재 위치">
+          📍
+        </button>
+        <button @click="zoomIn" class="control-btn" title="확대">
+          +
+        </button>
+        <button @click="zoomOut" class="control-btn" title="축소">
+          −
+        </button>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -431,15 +480,9 @@ h2 {
   justify-content: space-between;
   font-size: calc(var(--base-font-size, 16px) - 2px);
 }
-.label {
-  color: #666;
-}
-.value {
-  font-weight: bold;
-}
-.safety {
-  color: #2c7be5;
-}
+.label { color: #666; }
+.value { font-weight: bold; }
+.safety { color: #2c7be5; }
 .weather-info {
   font-size: calc(var(--base-font-size, 16px) - 3px);
   color: #555;
@@ -471,21 +514,54 @@ h2 {
   font-size: calc(var(--base-font-size, 16px) - 2px);
   font-weight: bold;
 }
-.map {
+
+/* 지도 */
+.map-wrapper {
   flex: 1;
+  position: relative;
 }
+.map {
+  width: 100%;
+  height: 100%;
+}
+.map-controls {
+  position: absolute;
+  bottom: 32px;
+  right: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 10;
+}
+.control-btn {
+  width: 40px;
+  height: 40px;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  transition: background 0.2s;
+}
+.control-btn:hover {
+  background: #f0f4ff;
+}
+.location-btn {
+  font-size: 20px;
+}
+
 @media (max-width: 768px) {
-  .home {
-    flex-direction: column;
-  }
+  .home { flex-direction: column; }
   .side-panel {
     width: 100%;
     height: auto;
     max-height: 50vh;
     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
   }
-  .map {
-    height: 50vh;
-  }
+  .map-wrapper { height: 50vh; }
 }
 </style>
