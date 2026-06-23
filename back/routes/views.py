@@ -99,13 +99,10 @@ def get_kakao_car_route(origin_lat, origin_lng, dest_lat, dest_lng):
         return None
 
 def calculate_safety_score(waypoints, user_type):
-    """경로 안전도 점수 계산 (최적화: 전체 범위 한 번에 조회)"""
+    """경로 안전도 점수 계산 (음향신호기/잔여시간표시기 비율 기반)"""
     if not waypoints:
         return 0.5
 
-    score = 1.0
-
-    # 전체 waypoints 범위로 한 번만 쿼리
     lats = [wp['lat'] for wp in waypoints]
     lngs = [wp['lng'] for wp in waypoints]
     min_lat, max_lat = min(lats), max(lats)
@@ -115,28 +112,22 @@ def calculate_safety_score(waypoints, user_type):
     lights = TrafficLight.objects.filter(
         lat__range=(min_lat - padding, max_lat + padding),
         lng__range=(min_lng - padding, max_lng + padding),
-        is_operating=True
     )
 
-    speed_map = {
-        'wheelchair': 0.5,
-        'elderly': 0.7,
-        'disabled': 0.6,
-        'pregnant': 0.8,
-        'normal': 1.0,
-    }
-    speed = speed_map.get(user_type, 1.0)
-    crossing_dist = 10
-    time_needed = crossing_dist / speed
+    total = lights.count()
+    if total == 0:
+        return 0.5
 
-    for light in lights:
-        green_time = light.get_pedestrian_green_time()
-        if green_time and green_time < time_needed:
-            score -= 0.1
-        if user_type == 'disabled' and not light.has_audio:
-            score -= 0.05
+    audio_count = lights.filter(has_audio=True).count()
+    remndr_count = lights.filter(has_remndr=True).count()
 
-    return max(0.0, min(1.0, score))
+    # 음향신호기 비율 (시각장애인 유형이면 가중치 높임)
+    if user_type == 'disabled':
+        score = (audio_count / total) * 0.7 + (remndr_count / total) * 0.3
+    else:
+        score = (audio_count / total) * 0.4 + (remndr_count / total) * 0.6
+
+    return round(max(0.0, min(1.0, score)), 2)
 
 
 def get_weather_info(lat, lng):
