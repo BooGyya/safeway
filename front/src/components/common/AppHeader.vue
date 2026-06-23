@@ -21,7 +21,10 @@ const closeMenu = () => {
 <template>
   <header class="header">
     <div class="header-inner">
-      <RouterLink to="/" class="logo" @click="closeMenu">🦽 SafeWay</RouterLink>
+      <RouterLink to="/" class="logo" @click="closeMenu">
+        <img src="@/assets/logo.png" alt="SafeWay 로고" class="logo-img" />
+        SafeWay
+      </RouterLink>
 
       <!-- 데스크탑 네비 -->
       <nav class="nav desktop-nav">
@@ -70,27 +73,39 @@ const closeMenu = () => {
 
 <style scoped>
 .header {
-  background-color: #2c7be5;
-  padding: 0 24px;
+  background-color: #2eb872;
   height: 60px;
   position: sticky;
   top: 0;
   z-index: 100;
+  padding: 0;
 }
 .header-inner {
   width: 100%;
-  max-width: 1200px;
   height: 60px;
-  margin: 0 auto;
+  padding: 0 24px;
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
+
 .logo {
   color: white;
   font-size: calc(var(--base-font-size, 16px) + 4px);
-  font-weight: bold;
+  font-weight: 700;
   text-decoration: none;
+  font-family: 'Poppins', sans-serif;
+  letter-spacing: -0.5px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.logo-img {
+  height: 32px;
+  width: auto;
+  background: white;
+  border-radius: 50%;
+  padding: 2px;
 }
 .desktop-nav {
   display: flex;
@@ -102,27 +117,35 @@ const closeMenu = () => {
   text-decoration: none;
   font-size: var(--base-font-size, 16px);
 }
+.username {
+  color: white;
+  font-size: calc(var(--base-font-size, 16px) - 2px);
+}
 .auth-buttons button {
   background: transparent;
   border: 1px solid white;
   color: white;
-  padding: 4px 12px;
-  border-radius: 4px;
+  padding: 0 14px;
+  border-radius: 6px;
   cursor: pointer;
   font-size: calc(var(--base-font-size, 16px) - 2px);
-}
-.username {
-  color: white;
-  font-size: calc(var(--base-font-size, 16px) - 2px);
+  font-family: 'Poppins', sans-serif;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
 }
 .mypage-btn {
   background: transparent;
   border: 1px solid white;
   color: white !important;
-  padding: 4px 12px;
-  border-radius: 4px;
+  padding: 0 14px;
+  border-radius: 6px;
   font-size: calc(var(--base-font-size, 16px) - 2px);
+  font-family: 'Poppins', sans-serif;
   text-decoration: none !important;
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
 }
 
 /* 햄버거 버튼 */
@@ -146,7 +169,7 @@ const closeMenu = () => {
 
 /* 모바일 메뉴 */
 .mobile-menu {
-  background: #1a65c8;
+  background: #1d7a50;
   padding: 16px 24px;
   display: flex;
   flex-direction: column;

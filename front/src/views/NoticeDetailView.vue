@@ -78,7 +78,7 @@ onMounted(fetchNotice)
 .back-btn {
   background: none;
   border: none;
-  color: #2c7be5;
+  color: #2eb872;
   cursor: pointer;
   font-size: calc(var(--base-font-size, 16px) - 2px);
   padding: 0;
@@ -112,8 +112,8 @@ onMounted(fetchNotice)
 .category-badge {
   font-size: calc(var(--base-font-size, 16px) - 4px);
   padding: 4px 10px;
-  background: #f0f4ff;
-  color: #2c7be5;
+  background: #e6f7ee;
+  color: #2eb872;
   border-radius: 20px;
   font-weight: bold;
 }

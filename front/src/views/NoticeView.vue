@@ -132,8 +132,8 @@ h2 {
 .category-badge {
   font-size: calc(var(--base-font-size, 16px) - 4px);
   padding: 4px 10px;
-  background: #f0f4ff;
-  color: #2c7be5;
+  background: #e6f7ee;
+  color: #2eb872;
   border-radius: 20px;
   font-weight: bold;
 }

@@ -12,6 +12,7 @@ const post = ref(null)
 const comments = ref([])
 const newComment = ref('')
 const loading = ref(false)
+const isFollowing = ref(false)
 
 const categoryLabel = {
   danger: '⚠️ 위험',
@@ -26,12 +27,27 @@ const fetchPost = async () => {
   try {
     const { data } = await communityAPI.getPost(route.params.id)
     post.value = data
+    isFollowing.value = data.is_following || false
     comments.value = data.comments || []
   } catch {
     alert('게시글을 불러오지 못했습니다.')
     router.push('/community')
   } finally {
     loading.value = false
+  }
+}
+
+const handleFollow = async () => {
+  if (!auth.isLoggedIn) {
+    alert('로그인이 필요합니다.')
+    return
+  }
+  if (!post.value?.user_id) return
+  try {
+    const { data } = await communityAPI.followUser(post.value.user_id)
+    isFollowing.value = data.is_following
+  } catch {
+    console.error('팔로우 실패')
   }
 }
 
@@ -106,7 +122,16 @@ onMounted(fetchPost)
           </div>
 
           <h2 class="post-title">{{ post.title }}</h2>
-          <p class="post-meta">👤 {{ post.username }} · 📅 {{ formatDate(post.created_at) }}</p>
+          <div class="post-meta-row">
+            <p class="post-meta">👤 {{ post.username }} · 📅 {{ formatDate(post.created_at) }}</p>
+            <button
+              v-if="auth.isLoggedIn && auth.user?.username !== post.username"
+              :class="['follow-btn', { following: isFollowing }]"
+              @click="handleFollow"
+            >
+              {{ isFollowing ? '팔로잉' : '팔로우' }}
+            </button>
+          </div>
           <p class="post-address">📍 {{ post.address }}</p>
           <p class="post-content">{{ post.content }}</p>
 
@@ -170,7 +195,7 @@ onMounted(fetchPost)
 .back-btn {
   background: none;
   border: none;
-  color: #2c7be5;
+  color: #2eb872;
   cursor: pointer;
   font-size: calc(var(--base-font-size, 16px) - 2px);
   padding: 0;
@@ -193,8 +218,8 @@ onMounted(fetchPost)
 .category-badge {
   font-size: calc(var(--base-font-size, 16px) - 4px);
   padding: 4px 10px;
-  background: #f0f4ff;
-  color: #2c7be5;
+  background: #e6f7ee;
+  color: #2eb872;
   border-radius: 20px;
   font-weight: bold;
 }
@@ -204,8 +229,8 @@ onMounted(fetchPost)
 }
 .edit-btn {
   padding: 4px 12px;
-  background: #f0f4ff;
-  color: #2c7be5;
+  background: #e6f7ee;
+  color: #2eb872;
   border: none;
   border-radius: 6px;
   cursor: pointer;
@@ -282,11 +307,11 @@ onMounted(fetchPost)
   outline: none;
 }
 .comment-form input:focus {
-  border-color: #2c7be5;
+  border-color: #2eb872;
 }
 .comment-form button {
   padding: 10px 20px;
-  background: #2c7be5;
+  background: #2eb872;
   color: white;
   border: none;
   border-radius: 8px;
@@ -343,6 +368,32 @@ onMounted(fetchPost)
   color: #888;
   padding: 40px;
   font-size: var(--base-font-size, 16px);
+}
+.post-meta-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.follow-btn {
+  padding: 4px 14px;
+  border: 1.5px solid #2eb872;
+  border-radius: 16px;
+  background: white;
+  color: #2eb872;
+  font-size: calc(var(--base-font-size, 16px) - 3px);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.follow-btn:hover {
+  background: #e6f7ee;
+}
+.follow-btn.following {
+  background: #2eb872;
+  color: white;
+}
+.follow-btn.following:hover {
+  background: #259a60;
 }
 
 @media (max-width: 768px) {

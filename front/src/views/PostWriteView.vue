@@ -179,7 +179,7 @@ const handleSubmit = async () => {
 .back-btn {
   background: none;
   border: none;
-  color: #2c7be5;
+  color: #2eb872;
   cursor: pointer;
   font-size: calc(var(--base-font-size, 16px) - 2px);
   padding: 0;
@@ -217,7 +217,7 @@ input, textarea {
   font-family: inherit;
 }
 input:focus, textarea:focus {
-  border-color: #2c7be5;
+  border-color: #2eb872;
 }
 textarea {
   resize: vertical;
@@ -237,9 +237,9 @@ textarea {
   color: #666;
 }
 .cat-btn.active {
-  background: #2c7be5;
+  background: #2eb872;
   color: white;
-  border-color: #2c7be5;
+  border-color: #2eb872;
 }
 .location-row {
   display: flex;
@@ -250,9 +250,9 @@ textarea {
 }
 .location-btn {
   padding: 10px 14px;
-  background: #f0f4ff;
-  color: #2c7be5;
-  border: 1px solid #2c7be5;
+  background: #e6f7ee;
+  color: #2eb872;
+  border: 1px solid #2eb872;
   border-radius: 8px;
   cursor: pointer;
   font-size: calc(var(--base-font-size, 16px) - 3px);
@@ -260,7 +260,7 @@ textarea {
 }
 .submit-btn {
   padding: 14px;
-  background: #2c7be5;
+  background: #2eb872;
   color: white;
   border: none;
   border-radius: 8px;

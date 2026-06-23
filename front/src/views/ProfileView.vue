@@ -4,6 +4,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useMapStore } from '@/stores/map'
 import { authAPI } from '@/api/auth'
 import { routeAPI } from '@/api/routes'
+import { communityAPI } from '@/api/community'
 import { useRouter } from 'vue-router'
 
 const auth = useAuthStore()
@@ -17,6 +18,9 @@ const history = ref([])
 const activeTab = ref('mypage')
 const loading = ref(false)
 const successMsg = ref('')
+const myPosts = ref([])
+const followers = ref([])
+const followings = ref([])
 
 const userTypeOptions = [
   { value: 'normal', label: '일반' },
@@ -110,6 +114,30 @@ const fetchHistory = async () => {
   }
 }
 
+const fetchMyPosts = async () => {
+  try {
+    const { data } = await communityAPI.getPosts('latest', 1, '', '')
+    myPosts.value = (data.results || data).filter(p => p.username === auth.user?.username)
+  } catch { myPosts.value = [] }
+}
+
+const fetchFollowList = async () => {
+  try {
+    const { data } = await communityAPI.getFollowList()
+    followers.value = data.followers || []
+    followings.value = data.following || []
+  } catch {
+    followers.value = []
+    followings.value = []
+  }
+}
+
+const goToTab = async (tab) => {
+  activeTab.value = tab
+  if (tab === 'myposts') await fetchMyPosts()
+  if (tab === 'followers' || tab === 'followings') await fetchFollowList()
+}
+
 const handleUpdateProfile = async () => {
   loading.value = true
   successMsg.value = ''
@@ -132,7 +160,11 @@ const handleChangePassword = async () => {
     return
   }
   try {
-    await authAPI.changePassword(passwordForm.value)
+    await authAPI.changePassword({
+      old_password: passwordForm.value.old_password,
+      new_password: passwordForm.value.new_password,
+      new_password2: passwordForm.value.new_password  // 추가
+    })
     alert('비밀번호가 변경되었습니다.')
     passwordForm.value = { old_password: '', new_password: '' }
   } catch {
@@ -218,23 +250,23 @@ const formatDate = (dateStr) => {
         </div>
 
         <div class="stats-grid">
-          <div class="stat-item">
+          <div class="stat-item" @click="activeTab = 'history'">
             <span class="stat-value">{{ mypage.stats?.route_count || 0 }}</span>
             <span class="stat-label">경로 탐색</span>
           </div>
-          <div class="stat-item">
+          <div class="stat-item" @click="activeTab = 'favorites'">
             <span class="stat-value">{{ mypage.stats?.favorite_count || 0 }}</span>
             <span class="stat-label">즐겨찾기</span>
           </div>
-          <div class="stat-item">
+          <div class="stat-item" @click="goToTab('myposts')">
             <span class="stat-value">{{ mypage.stats?.post_count || 0 }}</span>
             <span class="stat-label">게시글</span>
           </div>
-          <div class="stat-item">
+          <div class="stat-item" @click="goToTab('followers')">
             <span class="stat-value">{{ mypage.stats?.follower_count || 0 }}</span>
             <span class="stat-label">팔로워</span>
           </div>
-          <div class="stat-item">
+          <div class="stat-item" @click="goToTab('followings')">
             <span class="stat-value">{{ mypage.stats?.following_count || 0 }}</span>
             <span class="stat-label">팔로잉</span>
           </div>
@@ -300,8 +332,15 @@ const formatDate = (dateStr) => {
           </div>
 
           <div class="form-group">
-            <label>보행 속도 (m/s): {{ form.walk_speed }}</label>
-            <input v-model="form.walk_speed" type="range" min="0.5" max="2.0" step="0.1" />
+            <label>보행 속도: {{ form.walk_speed }}m/s</label>
+            <input v-model.number="form.walk_speed" type="range" min="0.3" max="2.0" step="0.1" />
+            <div class="speed-guide">
+              <span :class="{ active: form.walk_speed <= 0.5 }">느림</span>
+              <span :class="{ active: form.walk_speed > 0.5 && form.walk_speed <= 1.0 }">보통</span>
+              <span :class="{ active: form.walk_speed > 1.0 && form.walk_speed <= 1.5 }">빠름</span>
+              <span :class="{ active: form.walk_speed > 1.5 }">매우 빠름</span>
+            </div>
+            <p class="speed-desc">보행 속도에 따라 경로 탐색 시 예상 이동시간이 변경됩니다.</p>
           </div>
 
           <div class="form-group">
@@ -314,23 +353,6 @@ const formatDate = (dateStr) => {
                 @click="form.font_size = opt.value"
               >{{ opt.label }}</button>
             </div>
-          </div>
-
-          <div class="form-group">
-            <label>안내 음성</label>
-            <div class="option-group">
-              <button
-                v-for="opt in voiceTypeOptions"
-                :key="opt.value"
-                :class="['opt-btn', { active: form.voice_type === opt.value }]"
-                @click="form.voice_type = opt.value"
-              >{{ opt.label }}</button>
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label>음량: {{ form.voice_volume }}</label>
-            <input v-model="form.voice_volume" type="range" min="0" max="100" step="5" />
           </div>
 
           <div class="form-group">
@@ -373,6 +395,58 @@ const formatDate = (dateStr) => {
               <span class="list-title">{{ item.origin_name }} → {{ item.dest_name }}</span>
               <span class="list-sub">{{ formatDistance(item.distance) }} · {{ formatDuration(item.duration) }}</span>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 내 게시글 -->
+      <div v-if="activeTab === 'myposts'" class="tab-content">
+        <div class="tab-content-header">
+          <h3>내 게시글</h3>
+          <button class="back-to-home" @click="activeTab = 'mypage'">← 홈으로</button>
+        </div>
+        <div v-if="myPosts.length === 0" class="empty">작성한 게시글이 없어요.</div>
+        <div v-else class="list-box">
+          <div
+            v-for="post in myPosts"
+            :key="post.id"
+            class="list-item clickable"
+            @click="router.push(`/community/${post.id}`)"
+          >
+            <div class="list-info">
+              <span class="list-title">{{ post.title }}</span>
+              <span class="list-sub">❤️ {{ post.like_count || 0 }} · 💬 {{ post.comment_count || 0 }} · {{ formatDate(post.created_at) }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 팔로워 -->
+      <div v-if="activeTab === 'followers'" class="tab-content">
+        <div class="tab-content-header">
+          <h3>팔로워</h3>
+          <button class="back-to-home" @click="activeTab = 'mypage'">← 홈으로</button>
+        </div>
+        <div v-if="followers.length === 0" class="empty">팔로워가 없어요.</div>
+        <div v-else class="list-box">
+          <div v-for="f in followers" :key="f.id" class="list-item follow-item">
+            <div class="follow-avatar">{{ f.follower_username?.charAt(0)?.toUpperCase() }}</div>
+            <span class="follow-name">{{ f.follower_username }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 팔로잉 -->
+      <div v-if="activeTab === 'followings'" class="tab-content">
+        <div class="tab-content-header">
+          <h3>팔로잉</h3>
+          <button class="back-to-home" @click="activeTab = 'mypage'">← 홈으로</button>
+        </div>
+        <div v-if="followings.length === 0" class="empty">팔로잉하는 사용자가 없어요.</div>
+        <div v-else class="list-box">
+          <div v-for="f in followings" :key="f.id" class="list-item follow-item">
+            <div class="follow-avatar">{{ f.following_username?.charAt(0)?.toUpperCase() }}</div>
+            <span class="follow-name">{{ f.following_username }}</span>
           </div>
         </div>
       </div>
@@ -428,9 +502,9 @@ h2 {
   color: #666;
 }
 .tab-btn.active {
-  background: #2c7be5;
+  background: #2eb872;
   color: white;
-  border-color: #2c7be5;
+  border-color: #2eb872;
 }
 .tab-content {
   background: white;
@@ -446,13 +520,13 @@ h2 {
   align-items: center;
   gap: 16px;
   padding: 16px;
-  background: #f0f4ff;
+  background: #e6f7ee;
   border-radius: 12px;
 }
 .user-avatar {
   width: 56px;
   height: 56px;
-  background: #2c7be5;
+  background: #2eb872;
   color: white;
   border-radius: 50%;
   display: flex;
@@ -476,7 +550,7 @@ h2 {
   display: inline-block;
   margin-top: 6px;
   padding: 2px 10px;
-  background: #2c7be5;
+  background: #2eb872;
   color: white;
   border-radius: 20px;
   font-size: calc(var(--base-font-size, 16px) - 4px);
@@ -494,11 +568,16 @@ h2 {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.stat-item:hover {
+  background: #e6f7ee;
 }
 .stat-value {
   font-size: calc(var(--base-font-size, 16px) + 6px);
   font-weight: bold;
-  color: #2c7be5;
+  color: #2eb872;
 }
 .stat-label {
   font-size: calc(var(--base-font-size, 16px) - 4px);
@@ -530,7 +609,7 @@ h2 {
   color: #333;
 }
 .small-item.clickable { cursor: pointer; }
-.small-item.clickable:hover { background: #f0f4ff; }
+.small-item.clickable:hover { background: #e6f7ee; }
 .small-sub {
   font-size: calc(var(--base-font-size, 16px) - 4px);
   color: #aaa;
@@ -565,11 +644,11 @@ input[type="password"] {
 }
 input[type="text"]:focus,
 input[type="password"]:focus {
-  border-color: #2c7be5;
+  border-color: #2eb872;
 }
 input[type="range"] {
   width: 100%;
-  accent-color: #2c7be5;
+  accent-color: #2eb872;
 }
 .option-group {
   display: flex;
@@ -586,13 +665,13 @@ input[type="range"] {
   color: #666;
 }
 .opt-btn.active {
-  background: #2c7be5;
+  background: #2eb872;
   color: white;
-  border-color: #2c7be5;
+  border-color: #2eb872;
 }
 .save-btn {
   padding: 12px;
-  background: #2c7be5;
+  background: #2eb872;
   color: white;
   border: none;
   border-radius: 8px;
@@ -659,6 +738,70 @@ hr {
   padding: 40px;
   font-size: var(--base-font-size, 16px);
 }
+.speed-guide {
+  display: flex;
+  justify-content: space-between;
+  font-size: calc(var(--base-font-size, 16px) - 4px);
+  color: #bbb;
+}
+.speed-guide span.active {
+  color: #2eb872;
+  font-weight: 600;
+}
+.speed-desc {
+  font-size: calc(var(--base-font-size, 16px) - 4px);
+  color: #999;
+  margin: 0;
+}
+.tab-content-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.tab-content-header h3 {
+  font-size: calc(var(--base-font-size, 16px) + 1px);
+  font-weight: 700;
+  color: #333;
+  margin: 0;
+}
+.back-to-home {
+  background: none;
+  border: none;
+  color: #2eb872;
+  cursor: pointer;
+  font-size: calc(var(--base-font-size, 16px) - 2px);
+  font-weight: 600;
+}
+.list-item.clickable {
+  cursor: pointer;
+}
+.list-item.clickable:hover {
+  background: #e6f7ee;
+}
+.follow-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.follow-avatar {
+  width: 40px;
+  height: 40px;
+  background: #2eb872;
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(var(--base-font-size, 16px) + 2px);
+  font-weight: bold;
+  flex-shrink: 0;
+}
+.follow-name {
+  font-size: var(--base-font-size, 16px);
+  font-weight: 600;
+  color: #333;
+}
+
 @media (max-width: 768px) {
   .profile-page { padding: 16px; }
   .tab-content { padding: 16px; }

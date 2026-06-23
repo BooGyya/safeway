@@ -20,7 +20,7 @@ const router = useRouter()
   justify-content: center;
   align-items: center;
   min-height: calc(100vh - 60px);
-  background: #f0f4ff;
+  background: #e6f7ee;
 }
 .content {
   text-align: center;
@@ -32,7 +32,7 @@ const router = useRouter()
 .code {
   font-size: 80px;
   font-weight: bold;
-  color: #2c7be5;
+  color: #2eb872;
   line-height: 1;
 }
 h2 {
@@ -45,7 +45,7 @@ h2 {
 }
 button {
   padding: 12px 28px;
-  background: #2c7be5;
+  background: #2eb872;
   color: white;
   border: none;
   border-radius: 8px;
