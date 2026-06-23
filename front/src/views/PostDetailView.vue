@@ -26,6 +26,7 @@ const fetchPost = async () => {
   loading.value = true
   try {
     const { data } = await communityAPI.getPost(route.params.id)
+    console.log('post data:', data)  // 추가
     post.value = data
     isFollowing.value = data.is_following || false
     comments.value = data.comments || []
@@ -42,12 +43,16 @@ const handleFollow = async () => {
     alert('로그인이 필요합니다.')
     return
   }
-  if (!post.value?.user_id) return
+  console.log('user_id:', post.value?.user_id)  // 확인용
+  if (!post.value?.user_id) {
+    alert('user_id가 없습니다.')
+    return
+  }
   try {
     const { data } = await communityAPI.followUser(post.value.user_id)
     isFollowing.value = data.is_following
-  } catch {
-    console.error('팔로우 실패')
+  } catch (e) {
+    console.error('팔로우 실패', e.response?.data)
   }
 }
 
