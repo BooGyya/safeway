@@ -74,12 +74,23 @@ const handleSubmit = async () => {
 
   loading.value = true
   try {
+    const payload = {
+      title: form.value.title,
+      content: form.value.content,
+      category: form.value.category,
+      address: form.value.address,
+    }
+
+    // 위도/경도는 값이 있을 때만 포함
+    if (form.value.latitude !== '') payload.latitude = form.value.latitude
+    if (form.value.longitude !== '') payload.longitude = form.value.longitude
+
     if (isEdit.value) {
-      await communityAPI.updatePost(postId.value, form.value)
+      await communityAPI.updatePost(postId.value, payload)
       alert('게시글이 수정되었습니다.')
       router.push(`/community/${postId.value}`)
     } else {
-      await communityAPI.createPost(form.value)
+      await communityAPI.createPost(payload)
       alert('제보가 등록되었습니다!')
       router.push('/community')
     }
@@ -89,6 +100,7 @@ const handleSubmit = async () => {
     loading.value = false
   }
 }
+
 </script>
 
 <template>
