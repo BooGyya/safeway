@@ -1,5 +1,9 @@
 <script setup>
+import { RouterView } from 'vue-router'
 import AppHeader from '@/components/common/AppHeader.vue'
+import { useAuthStore } from '@/stores/auth'
+
+const auth = useAuthStore()
 </script>
 
 <template>
@@ -19,6 +23,7 @@ import AppHeader from '@/components/common/AppHeader.vue'
 body {
   font-family: 'Noto Sans KR', sans-serif;
   background-color: #f5f5f5;
+  font-size: var(--base-font-size, 16px);
 }
 
 main {

@@ -26,7 +26,6 @@ const categories = [
   { value: 'other', label: '📌 기타' },
 ]
 
-// 수정 모드인지 확인
 onMounted(async () => {
   if (route.query.edit) {
     isEdit.value = true
@@ -48,7 +47,6 @@ onMounted(async () => {
   }
 })
 
-// 현재 위치 가져오기
 const getLocation = () => {
   if (!navigator.geolocation) {
     alert('위치 정보를 지원하지 않는 브라우저입니다.')
@@ -76,12 +74,23 @@ const handleSubmit = async () => {
 
   loading.value = true
   try {
+    const payload = {
+      title: form.value.title,
+      content: form.value.content,
+      category: form.value.category,
+      address: form.value.address,
+    }
+
+    // 위도/경도는 값이 있을 때만 포함
+    if (form.value.latitude !== '') payload.latitude = form.value.latitude
+    if (form.value.longitude !== '') payload.longitude = form.value.longitude
+
     if (isEdit.value) {
-      await communityAPI.updatePost(postId.value, form.value)
+      await communityAPI.updatePost(postId.value, payload)
       alert('게시글이 수정되었습니다.')
       router.push(`/community/${postId.value}`)
     } else {
-      await communityAPI.createPost(form.value)
+      await communityAPI.createPost(payload)
       alert('제보가 등록되었습니다!')
       router.push('/community')
     }
@@ -91,6 +100,7 @@ const handleSubmit = async () => {
     loading.value = false
   }
 }
+
 </script>
 
 <template>
@@ -102,7 +112,6 @@ const handleSubmit = async () => {
       </div>
 
       <div class="form-box">
-        <!-- 카테고리 -->
         <div class="form-group">
           <label>카테고리</label>
           <div class="category-group">
@@ -117,25 +126,21 @@ const handleSubmit = async () => {
           </div>
         </div>
 
-        <!-- 제목 -->
         <div class="form-group">
           <label>제목</label>
           <input v-model="form.title" type="text" placeholder="제목을 입력하세요" />
         </div>
 
-        <!-- 내용 -->
         <div class="form-group">
           <label>내용</label>
           <textarea v-model="form.content" placeholder="위험 구간에 대해 자세히 설명해주세요" rows="6"></textarea>
         </div>
 
-        <!-- 주소 -->
         <div class="form-group">
           <label>주소</label>
           <input v-model="form.address" type="text" placeholder="주소를 입력하세요" />
         </div>
 
-        <!-- 위치 -->
         <div class="form-group">
           <label>위치 (선택)</label>
           <div class="location-row">
@@ -176,11 +181,11 @@ const handleSubmit = async () => {
   border: none;
   color: #2c7be5;
   cursor: pointer;
-  font-size: 14px;
+  font-size: calc(var(--base-font-size, 16px) - 2px);
   padding: 0;
 }
 h2 {
-  font-size: 20px;
+  font-size: calc(var(--base-font-size, 16px) + 4px);
   font-weight: bold;
   color: #333;
 }
@@ -199,7 +204,7 @@ h2 {
   gap: 8px;
 }
 label {
-  font-size: 14px;
+  font-size: calc(var(--base-font-size, 16px) - 2px);
   font-weight: bold;
   color: #555;
 }
@@ -207,7 +212,7 @@ input, textarea {
   padding: 10px 14px;
   border: 1px solid #ddd;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: calc(var(--base-font-size, 16px) - 2px);
   outline: none;
   font-family: inherit;
 }
@@ -228,7 +233,7 @@ textarea {
   border-radius: 20px;
   background: white;
   cursor: pointer;
-  font-size: 13px;
+  font-size: calc(var(--base-font-size, 16px) - 3px);
   color: #666;
 }
 .cat-btn.active {
@@ -250,7 +255,7 @@ textarea {
   border: 1px solid #2c7be5;
   border-radius: 8px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: calc(var(--base-font-size, 16px) - 3px);
   white-space: nowrap;
 }
 .submit-btn {
@@ -259,10 +264,28 @@ textarea {
   color: white;
   border: none;
   border-radius: 8px;
-  font-size: 16px;
+  font-size: var(--base-font-size, 16px);
   cursor: pointer;
 }
 .submit-btn:disabled {
   background: #aaa;
+}
+
+@media (max-width: 768px) {
+  .write-page {
+    padding: 16px;
+  }
+  .form-box {
+    padding: 16px;
+  }
+  .location-row {
+    flex-direction: column;
+  }
+  .location-btn {
+    width: 100%;
+  }
+  .category-group {
+    gap: 6px;
+  }
 }
 </style>

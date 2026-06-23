@@ -1,17 +1,20 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
+import { useMapStore } from '@/stores/map'
 import { authAPI } from '@/api/auth'
 import { routeAPI } from '@/api/routes'
 import { useRouter } from 'vue-router'
 
 const auth = useAuthStore()
+const mapStore = useMapStore()
 const router = useRouter()
 
 const profile = ref(null)
+const mypage = ref(null)
 const favorites = ref([])
 const history = ref([])
-const activeTab = ref('profile')
+const activeTab = ref('mypage')
 const loading = ref(false)
 const successMsg = ref('')
 
@@ -48,11 +51,28 @@ const passwordForm = ref({
   new_password: ''
 })
 
+const applyFontSize = (size) => {
+  const root = document.documentElement
+  if (size === 'small') root.style.setProperty('--base-font-size', '14px')
+  else if (size === 'large') root.style.setProperty('--base-font-size', '18px')
+  else root.style.setProperty('--base-font-size', '16px')
+}
+
 onMounted(async () => {
+  await fetchMyPage()
   await fetchProfile()
   await fetchFavorites()
   await fetchHistory()
 })
+
+const fetchMyPage = async () => {
+  try {
+    const { data } = await authAPI.getMyPage()
+    mypage.value = data
+  } catch {
+    console.error('마이페이지 로드 실패')
+  }
+}
 
 const fetchProfile = async () => {
   try {
@@ -66,6 +86,7 @@ const fetchProfile = async () => {
       voice_volume: data.voice_volume,
       sos_number: data.sos_number || ''
     }
+    applyFontSize(data.font_size)
   } catch {
     console.error('프로필 로드 실패')
   }
@@ -95,6 +116,7 @@ const handleUpdateProfile = async () => {
   try {
     await authAPI.updateProfile(form.value)
     await auth.fetchProfile()
+    applyFontSize(form.value.font_size)
     successMsg.value = '프로필이 저장되었습니다!'
     setTimeout(() => successMsg.value = '', 3000)
   } catch {
@@ -128,6 +150,14 @@ const handleDeleteFavorite = async (id) => {
   }
 }
 
+const goToRoute = (fav) => {
+  mapStore.setRoute(
+    { name: fav.route.origin_name, lat: fav.route.origin_lat, lng: fav.route.origin_lng },
+    { name: fav.route.dest_name, lat: fav.route.dest_lat, lng: fav.route.dest_lng }
+  )
+  router.push('/')
+}
+
 const handleDeleteAccount = async () => {
   if (!confirm('정말 탈퇴하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) return
   try {
@@ -147,6 +177,11 @@ const formatDuration = (seconds) => {
 const formatDistance = (meters) => {
   return meters >= 1000 ? `${(meters/1000).toFixed(1)}km` : `${Math.round(meters)}m`
 }
+
+const formatDate = (dateStr) => {
+  const date = new Date(dateStr)
+  return `${date.getFullYear()}.${date.getMonth()+1}.${date.getDate()}`
+}
 </script>
 
 <template>
@@ -154,14 +189,14 @@ const formatDistance = (meters) => {
     <div class="profile-inner">
       <h2>마이페이지</h2>
 
-      <!-- 탭 -->
       <div class="tab-bar">
         <button
           v-for="tab in [
-            { value: 'profile', label: '프로필 설정' },
-            { value: 'favorites', label: '즐겨찾기' },
-            { value: 'history', label: '탐색 히스토리' },
-            { value: 'password', label: '비밀번호 변경' },
+            { value: 'mypage', label: '🏠 홈' },
+            { value: 'profile', label: '⚙️ 프로필 설정' },
+            { value: 'favorites', label: '⭐ 즐겨찾기' },
+            { value: 'history', label: '🕐 탐색 히스토리' },
+            { value: 'password', label: '🔒 비밀번호 변경' },
           ]"
           :key="tab.value"
           :class="['tab-btn', { active: activeTab === tab.value }]"
@@ -169,6 +204,84 @@ const formatDistance = (meters) => {
         >
           {{ tab.label }}
         </button>
+      </div>
+
+      <!-- 마이페이지 홈 -->
+      <div v-if="activeTab === 'mypage' && mypage" class="tab-content">
+        <div class="user-info-box">
+          <div class="user-avatar">{{ mypage.user?.username?.charAt(0)?.toUpperCase() }}</div>
+          <div class="user-details">
+            <h3>{{ mypage.user?.username }}</h3>
+            <p>{{ mypage.user?.email }}</p>
+            <span class="user-type-badge">{{ mypage.user?.user_type }}</span>
+          </div>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-item">
+            <span class="stat-value">{{ mypage.stats?.route_count || 0 }}</span>
+            <span class="stat-label">경로 탐색</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value">{{ mypage.stats?.favorite_count || 0 }}</span>
+            <span class="stat-label">즐겨찾기</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value">{{ mypage.stats?.post_count || 0 }}</span>
+            <span class="stat-label">게시글</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value">{{ mypage.stats?.follower_count || 0 }}</span>
+            <span class="stat-label">팔로워</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value">{{ mypage.stats?.following_count || 0 }}</span>
+            <span class="stat-label">팔로잉</span>
+          </div>
+        </div>
+
+        <div class="section-box">
+          <h4>🗺 최근 경로</h4>
+          <div v-if="mypage.recent_routes?.length === 0" class="empty-small">없어요</div>
+          <div v-else class="small-list">
+            <div v-for="route in mypage.recent_routes" :key="route.id" class="small-item">
+              <span>{{ route.origin_name }} → {{ route.dest_name }}</span>
+              <span class="small-sub">{{ formatDistance(route.distance) }} · {{ formatDuration(route.duration) }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-box">
+          <h4>📝 최근 게시글</h4>
+          <div v-if="mypage.recent_posts?.length === 0" class="empty-small">없어요</div>
+          <div v-else class="small-list">
+            <div
+              v-for="post in mypage.recent_posts"
+              :key="post.id"
+              class="small-item clickable"
+              @click="router.push(`/community/${post.id}`)"
+            >
+              <span>{{ post.title }}</span>
+              <span class="small-sub">{{ formatDate(post.created_at) }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-box">
+          <h4>💬 최근 댓글</h4>
+          <div v-if="mypage.recent_comments?.length === 0" class="empty-small">없어요</div>
+          <div v-else class="small-list">
+            <div
+              v-for="comment in mypage.recent_comments"
+              :key="comment.id"
+              class="small-item clickable"
+              @click="router.push(`/community/${comment.post}`)"
+            >
+              <span>{{ comment.content }}</span>
+              <span class="small-sub">{{ formatDate(comment.created_at) }}</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- 프로필 설정 -->
@@ -182,9 +295,7 @@ const formatDistance = (meters) => {
                 :key="opt.value"
                 :class="['opt-btn', { active: form.user_type === opt.value }]"
                 @click="form.user_type = opt.value"
-              >
-                {{ opt.label }}
-              </button>
+              >{{ opt.label }}</button>
             </div>
           </div>
 
@@ -201,9 +312,7 @@ const formatDistance = (meters) => {
                 :key="opt.value"
                 :class="['opt-btn', { active: form.font_size === opt.value }]"
                 @click="form.font_size = opt.value"
-              >
-                {{ opt.label }}
-              </button>
+              >{{ opt.label }}</button>
             </div>
           </div>
 
@@ -215,9 +324,7 @@ const formatDistance = (meters) => {
                 :key="opt.value"
                 :class="['opt-btn', { active: form.voice_type === opt.value }]"
                 @click="form.voice_type = opt.value"
-              >
-                {{ opt.label }}
-              </button>
+              >{{ opt.label }}</button>
             </div>
           </div>
 
@@ -239,9 +346,7 @@ const formatDistance = (meters) => {
 
           <hr />
 
-          <button @click="handleDeleteAccount" class="delete-account-btn">
-            회원 탈퇴
-          </button>
+          <button @click="handleDeleteAccount" class="delete-account-btn">회원 탈퇴</button>
         </div>
       </div>
 
@@ -250,7 +355,7 @@ const formatDistance = (meters) => {
         <div v-if="favorites.length === 0" class="empty">즐겨찾기가 없어요.</div>
         <div v-else class="list-box">
           <div v-for="fav in favorites" :key="fav.id" class="list-item">
-            <div class="list-info">
+            <div class="list-info" @click="goToRoute(fav)" style="cursor:pointer">
               <span class="list-title">{{ fav.nickname || `${fav.route?.origin_name} → ${fav.route?.dest_name}` }}</span>
               <span class="list-sub">{{ fav.route?.origin_name }} → {{ fav.route?.dest_name }}</span>
             </div>
@@ -304,7 +409,7 @@ const formatDistance = (meters) => {
   gap: 20px;
 }
 h2 {
-  font-size: 22px;
+  font-size: calc(var(--base-font-size, 16px) + 6px);
   font-weight: bold;
   color: #333;
 }
@@ -314,12 +419,12 @@ h2 {
   flex-wrap: wrap;
 }
 .tab-btn {
-  padding: 8px 20px;
+  padding: 8px 16px;
   border: 1px solid #ddd;
   border-radius: 20px;
   background: white;
   cursor: pointer;
-  font-size: 14px;
+  font-size: calc(var(--base-font-size, 16px) - 3px);
   color: #666;
 }
 .tab-btn.active {
@@ -332,6 +437,108 @@ h2 {
   border-radius: 12px;
   padding: 24px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.user-info-box {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background: #f0f4ff;
+  border-radius: 12px;
+}
+.user-avatar {
+  width: 56px;
+  height: 56px;
+  background: #2c7be5;
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(var(--base-font-size, 16px) + 8px);
+  font-weight: bold;
+  flex-shrink: 0;
+}
+.user-details h3 {
+  font-size: calc(var(--base-font-size, 16px) + 2px);
+  font-weight: bold;
+  color: #333;
+}
+.user-details p {
+  font-size: calc(var(--base-font-size, 16px) - 3px);
+  color: #888;
+  margin-top: 2px;
+}
+.user-type-badge {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 2px 10px;
+  background: #2c7be5;
+  color: white;
+  border-radius: 20px;
+  font-size: calc(var(--base-font-size, 16px) - 4px);
+}
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+}
+.stat-item {
+  background: #f9f9f9;
+  border-radius: 12px;
+  padding: 16px 8px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.stat-value {
+  font-size: calc(var(--base-font-size, 16px) + 6px);
+  font-weight: bold;
+  color: #2c7be5;
+}
+.stat-label {
+  font-size: calc(var(--base-font-size, 16px) - 4px);
+  color: #888;
+}
+.section-box {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.section-box h4 {
+  font-size: var(--base-font-size, 16px);
+  font-weight: bold;
+  color: #333;
+}
+.small-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.small-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  background: #f9f9f9;
+  border-radius: 8px;
+  font-size: calc(var(--base-font-size, 16px) - 2px);
+  color: #333;
+}
+.small-item.clickable { cursor: pointer; }
+.small-item.clickable:hover { background: #f0f4ff; }
+.small-sub {
+  font-size: calc(var(--base-font-size, 16px) - 4px);
+  color: #aaa;
+}
+.empty-small {
+  font-size: calc(var(--base-font-size, 16px) - 3px);
+  color: #aaa;
+  padding: 8px 0;
 }
 .form-box {
   display: flex;
@@ -344,7 +551,7 @@ h2 {
   gap: 8px;
 }
 label {
-  font-size: 14px;
+  font-size: calc(var(--base-font-size, 16px) - 2px);
   font-weight: bold;
   color: #555;
 }
@@ -353,7 +560,7 @@ input[type="password"] {
   padding: 10px 14px;
   border: 1px solid #ddd;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: calc(var(--base-font-size, 16px) - 2px);
   outline: none;
 }
 input[type="text"]:focus,
@@ -375,7 +582,7 @@ input[type="range"] {
   border-radius: 20px;
   background: white;
   cursor: pointer;
-  font-size: 13px;
+  font-size: calc(var(--base-font-size, 16px) - 3px);
   color: #666;
 }
 .opt-btn.active {
@@ -389,24 +596,22 @@ input[type="range"] {
   color: white;
   border: none;
   border-radius: 8px;
-  font-size: 15px;
+  font-size: var(--base-font-size, 16px);
   cursor: pointer;
 }
-.save-btn:disabled {
-  background: #aaa;
-}
+.save-btn:disabled { background: #aaa; }
 .delete-account-btn {
   padding: 10px;
   background: white;
   color: #e53e3e;
   border: 1px solid #e53e3e;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: calc(var(--base-font-size, 16px) - 2px);
   cursor: pointer;
 }
 .success-msg {
   color: #38a169;
-  font-size: 14px;
+  font-size: calc(var(--base-font-size, 16px) - 2px);
 }
 hr {
   border: none;
@@ -431,12 +636,12 @@ hr {
   gap: 4px;
 }
 .list-title {
-  font-size: 15px;
+  font-size: var(--base-font-size, 16px);
   font-weight: bold;
   color: #333;
 }
 .list-sub {
-  font-size: 13px;
+  font-size: calc(var(--base-font-size, 16px) - 3px);
   color: #888;
 }
 .del-btn {
@@ -446,11 +651,21 @@ hr {
   border: none;
   border-radius: 6px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: calc(var(--base-font-size, 16px) - 3px);
 }
 .empty {
   text-align: center;
   color: #aaa;
   padding: 40px;
+  font-size: var(--base-font-size, 16px);
+}
+@media (max-width: 768px) {
+  .profile-page { padding: 16px; }
+  .tab-content { padding: 16px; }
+  .tab-bar { gap: 6px; }
+  .tab-btn { padding: 6px 12px; }
+  .stats-grid { grid-template-columns: repeat(3, 1fr); }
+  .list-item { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .del-btn { width: 100%; text-align: center; }
 }
 </style>

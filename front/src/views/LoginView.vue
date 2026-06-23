@@ -84,13 +84,13 @@ const handleLogin = async () => {
   text-align: center;
 }
 h1 {
-  font-size: 28px;
+  font-size: calc(var(--base-font-size, 16px) + 12px);
   color: #2c7be5;
   margin-bottom: 8px;
 }
 .subtitle {
   color: #888;
-  font-size: 14px;
+  font-size: calc(var(--base-font-size, 16px) - 2px);
   margin-bottom: 32px;
 }
 .form {
@@ -102,7 +102,7 @@ input {
   padding: 12px 16px;
   border: 1px solid #ddd;
   border-radius: 8px;
-  font-size: 15px;
+  font-size: var(--base-font-size, 16px);
   outline: none;
 }
 input:focus {
@@ -114,7 +114,7 @@ button {
   color: white;
   border: none;
   border-radius: 8px;
-  font-size: 16px;
+  font-size: var(--base-font-size, 16px);
   cursor: pointer;
   margin-top: 4px;
 }
@@ -127,21 +127,29 @@ button:disabled {
   background-color: #fee500;
   color: #333;
   border-radius: 8px;
-  font-size: 15px;
+  font-size: var(--base-font-size, 16px);
   text-decoration: none;
   font-weight: bold;
 }
 .error {
   color: red;
-  font-size: 13px;
+  font-size: calc(var(--base-font-size, 16px) - 3px);
 }
 .register-link {
-  font-size: 13px;
+  font-size: calc(var(--base-font-size, 16px) - 3px);
   color: #666;
 }
 .register-link a {
   color: #2c7be5;
   text-decoration: none;
   font-weight: bold;
+}
+
+@media (max-width: 768px) {
+  .login-box {
+    padding: 32px 24px;
+    margin: 16px;
+    border-radius: 12px;
+  }
 }
 </style>
