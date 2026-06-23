@@ -5,6 +5,7 @@ import { infraAPI } from '@/api/infra'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
 import { useMapStore } from '@/stores/map'
+import { authAPI } from '@/api/auth'
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -467,6 +468,37 @@ const zoomIn = () => {
 // 축소
 const zoomOut = () => {
   map.setLevel(map.getLevel() + 1)
+}
+
+const sendSOS = async () => {
+  if (!auth.isLoggedIn) {
+    alert('로그인이 필요합니다.')
+    return
+  }
+  if (!auth.user?.sos_number) {
+    alert('마이페이지에서 SOS 번호를 먼저 등록해주세요!')
+    router.push('/profile')
+    return
+  }
+  if (!confirm('SOS 문자를 발송하시겠습니까?')) return
+
+  try {
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        await authAPI.sendSOS({
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+        })
+        alert('SOS 문자가 발송되었습니다!')
+      },
+      async () => {
+        await authAPI.sendSOS({})
+        alert('SOS 문자가 발송되었습니다!')
+      }
+    )
+  } catch {
+    alert('SOS 발송에 실패했습니다.')
+  }
 }
 
 // 시설 검색
@@ -967,14 +999,17 @@ const formatDistance = (meters) => {
 
       <!-- 지도 컨트롤 버튼 -->
       <div class="map-controls">
+        <button @click="sendSOS" class="control-btn sos-btn" title="SOS">
+            SOS
+        </button>
         <button @click="moveToCurrentLocation" class="control-btn location-btn" title="현재 위치">
-          📍
+            📍
         </button>
         <button @click="zoomIn" class="control-btn" title="확대">
-          +
+            +
         </button>
         <button @click="zoomOut" class="control-btn" title="축소">
-          −
+            −
         </button>
       </div>
     </div>
@@ -1308,6 +1343,16 @@ h2 {
 }
 .action-btn-primary:hover {
   background: #259a60;
+}
+.sos-btn {
+  background: #e53e3e !important;
+  color: white;
+  font-weight: 700;
+  font-size: 13px;
+  border: none !important;
+}
+.sos-btn:hover {
+  background: #c53030 !important;
 }
 
 /* 지도 클릭 위치 */
