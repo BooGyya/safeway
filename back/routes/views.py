@@ -99,48 +99,42 @@ def get_kakao_car_route(origin_lat, origin_lng, dest_lat, dest_lng):
         return None
 
 def calculate_safety_score(waypoints, user_type):
-    """경로 안전도 점수 계산"""
+    """경로 안전도 점수 계산 (최적화: 전체 범위 한 번에 조회)"""
     if not waypoints:
         return 0.5
 
     score = 1.0
-    radius = 0.001  # 약 100m
 
-    for point in waypoints:
-        lat, lng = point.get('lat'), point.get('lng')
-        if not lat or not lng:
-            continue
+    # 전체 waypoints 범위로 한 번만 쿼리
+    lats = [wp['lat'] for wp in waypoints]
+    lngs = [wp['lng'] for wp in waypoints]
+    min_lat, max_lat = min(lats), max(lats)
+    min_lng, max_lng = min(lngs), max(lngs)
+    padding = 0.001
 
-        # 주변 신호등 조회
-        lights = TrafficLight.objects.filter(
-            lat__range=(lat - radius, lat + radius),
-            lng__range=(lng - radius, lng + radius),
-            is_operating=True
-        )
+    lights = TrafficLight.objects.filter(
+        lat__range=(min_lat - padding, max_lat + padding),
+        lng__range=(min_lng - padding, max_lng + padding),
+        is_operating=True
+    )
 
-        for light in lights:
-            green_time = light.get_pedestrian_green_time()
+    speed_map = {
+        'wheelchair': 0.5,
+        'elderly': 0.7,
+        'disabled': 0.6,
+        'pregnant': 0.8,
+        'normal': 1.0,
+    }
+    speed = speed_map.get(user_type, 1.0)
+    crossing_dist = 10
+    time_needed = crossing_dist / speed
 
-            # 사용자 유형별 보행속도 (m/s)
-            speed_map = {
-                'wheelchair': 0.5,
-                'elderly': 0.7,
-                'disabled': 0.6,
-                'pregnant': 0.8,
-                'normal': 1.0,
-            }
-            speed = speed_map.get(user_type, 1.0)
-
-            # 횡단보도 거리 (약 10m 가정)
-            crossing_dist = 10
-            time_needed = crossing_dist / speed
-
-            if green_time and green_time < time_needed:
-                score -= 0.1
-
-            # 음향신호기 없으면 시각장애인에게 불리
-            if user_type == 'disabled' and not light.has_audio:
-                score -= 0.05
+    for light in lights:
+        green_time = light.get_pedestrian_green_time()
+        if green_time and green_time < time_needed:
+            score -= 0.1
+        if user_type == 'disabled' and not light.has_audio:
+            score -= 0.05
 
     return max(0.0, min(1.0, score))
 
