@@ -30,9 +30,7 @@ const handleSubmit = async () => {
   }
 }
 
-const skip = () => {
-  router.push('/')
-}
+
 </script>
 
 <template>
@@ -52,7 +50,6 @@ const skip = () => {
         <button @click="handleSubmit" :disabled="loading">
           {{ loading ? '저장 중...' : '저장하기' }}
         </button>
-        <button class="skip-btn" @click="skip">건너뛰기</button>
       </div>
     </div>
   </div>
@@ -117,14 +114,6 @@ button {
 }
 button:disabled {
   background-color: #aaa;
-}
-.skip-btn {
-  background: white;
-  color: #888;
-  border: 1px solid #ddd;
-}
-.skip-btn:hover {
-  background: #f5f5f5;
 }
 .error {
   color: red;
