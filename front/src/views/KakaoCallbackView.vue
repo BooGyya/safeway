@@ -7,7 +7,7 @@ const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
 
-onMounted(() => {
+onMounted(async () => {
   const access = route.query.access
   const refresh = route.query.refresh
 
@@ -16,10 +16,13 @@ onMounted(() => {
     localStorage.setItem('refresh', refresh)
     auth.accessToken = access
 
-    // 프로필 불러오기
-    auth.fetchProfile().then(() => {
+    try {
+      await auth.fetchProfile()
       router.push('/')
-    })
+    } catch {
+      alert('프로필 로드에 실패했습니다.')
+      router.push('/login')
+    }
   } else {
     alert('카카오 로그인에 실패했습니다.')
     router.push('/login')
@@ -39,7 +42,7 @@ onMounted(() => {
   justify-content: center;
   align-items: center;
   min-height: calc(100vh - 60px);
-  font-size: 18px;
+  font-size: var(--base-font-size, 16px);
   color: #666;
 }
 </style>

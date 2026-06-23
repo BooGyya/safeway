@@ -51,6 +51,11 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/kakao/callback',
+    name: 'KakaoCallback',
+    component: () => import('@/views/KakaoCallbackView.vue')
+  },
+  {
     path: '/:pathMatch(.*)*',
     name: 'NotFound',
     component: () => import('@/views/NotFoundView.vue')
@@ -73,4 +78,3 @@ router.beforeEach((to, _, next) => {
 })
 
 export default router
-
