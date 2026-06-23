@@ -75,7 +75,7 @@ const handleRegister = async () => {
   justify-content: center;
   align-items: center;
   min-height: calc(100vh - 60px);
-  background-color: #f0f4ff;
+  background-color: #e6f7ee;
 }
 .register-box {
   background: white;
@@ -88,7 +88,7 @@ const handleRegister = async () => {
 }
 h1 {
   font-size: calc(var(--base-font-size, 16px) + 12px);
-  color: #2c7be5;
+  color: #2eb872;
   margin-bottom: 8px;
 }
 .subtitle {
@@ -109,11 +109,11 @@ input {
   outline: none;
 }
 input:focus {
-  border-color: #2c7be5;
+  border-color: #2eb872;
 }
 button {
   padding: 12px;
-  background-color: #2c7be5;
+  background-color: #2eb872;
   color: white;
   border: none;
   border-radius: 8px;
@@ -133,7 +133,7 @@ button:disabled {
   color: #666;
 }
 .login-link a {
-  color: #2c7be5;
+  color: #2eb872;
   text-decoration: none;
   font-weight: bold;
 }

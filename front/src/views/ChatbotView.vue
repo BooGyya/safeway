@@ -210,9 +210,9 @@ const formatDate = (dateStr) => {
   color: #666;
 }
 .tab-btn.active {
-  background: #2c7be5;
+  background: #2eb872;
   color: white;
-  border-color: #2c7be5;
+  border-color: #2eb872;
 }
 .chat-box {
   background: white;
@@ -243,12 +243,12 @@ const formatDate = (dateStr) => {
   gap: 8px;
 }
 .message.user .bubble {
-  background: #2c7be5;
+  background: #2eb872;
   color: white;
   border-bottom-right-radius: 4px;
 }
 .message.assistant .bubble {
-  background: #f0f4ff;
+  background: #e6f7ee;
   color: #333;
   border-bottom-left-radius: 4px;
 }
@@ -277,13 +277,13 @@ const formatDate = (dateStr) => {
 .suggest-btn {
   padding: 8px 14px;
   background: white;
-  border: 1px solid #2c7be5;
-  color: #2c7be5;
+  border: 1px solid #2eb872;
+  color: #2eb872;
   border-radius: 20px;
   cursor: pointer;
   font-size: calc(var(--base-font-size, 16px) - 3px);
 }
-.suggest-btn:hover { background: #f0f4ff; }
+.suggest-btn:hover { background: #e6f7ee; }
 .input-box {
   display: flex;
   gap: 8px;
@@ -296,10 +296,10 @@ const formatDate = (dateStr) => {
   font-size: var(--base-font-size, 16px);
   outline: none;
 }
-.input-box input:focus { border-color: #2c7be5; }
+.input-box input:focus { border-color: #2eb872; }
 .send-btn {
   padding: 14px 24px;
-  background: #2c7be5;
+  background: #2eb872;
   color: white;
   border: none;
   border-radius: 12px;
@@ -344,11 +344,11 @@ const formatDate = (dateStr) => {
   font-weight: bold;
 }
 .user-badge {
-  background: #2c7be5;
+  background: #2eb872;
   color: white;
 }
 .bot-badge {
-  background: #f0f4ff;
+  background: #e6f7ee;
   color: #333;
 }
 .history-question p,

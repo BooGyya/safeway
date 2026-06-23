@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, nextTick } from 'vue'
 import { routeAPI } from '@/api/routes'
 import { infraAPI } from '@/api/infra'
 import { useAuthStore } from '@/stores/auth'
@@ -22,12 +22,28 @@ const categories = [
   { key: 'hospital', label: '병원', icon: '🏥', color: '#e53e3e' },
   { key: 'pharmacy', label: '약국', icon: '💊', color: '#38a169' },
   { key: 'welfare', label: '복지시설', icon: '🏢', color: '#805ad5' },
-  { key: 'elevator', label: '엘리베이터', icon: '🛗', color: '#2c7be5' },
+  { key: 'elevator', label: '엘리베이터', icon: '🛗', color: '#2eb872' },
   { key: 'support_center', label: '지원센터', icon: '🤝', color: '#dd6b20' },
 ]
 const activeCategories = ref(new Set())
 let activeOverlay = null
 let pinnedOverlay = null
+
+// 패널 모드
+const panelMode = ref('route')
+
+// 시설 검색 관련
+const facilityQuery = ref('')
+const facilityResults = ref([])
+const facilityLoading = ref(false)
+const selectedFacility = ref(null)
+let facilityMarkers = []
+
+// 지도 클릭 위치 정보
+const clickedPlace = ref(null)
+const previewMapContainer = ref(null)
+let clickedMarker = null
+let previewMap = null
 
 // 경로 탐색 관련
 const originQuery = ref('')
@@ -58,7 +74,7 @@ onMounted(() => {
         }
         map = new window.kakao.maps.Map(mapContainer.value, options)
 
-        window.kakao.maps.event.addListener(map, 'click', () => {
+        window.kakao.maps.event.addListener(map, 'click', (mouseEvent) => {
           if (pinnedOverlay) {
             pinnedOverlay.setMap(null)
             pinnedOverlay = null
@@ -67,6 +83,7 @@ onMounted(() => {
             activeOverlay.setMap(null)
             activeOverlay = null
           }
+          handleMapClick(mouseEvent.latLng)
         })
 
         if (mapStore.pendingRoute) {
@@ -160,7 +177,7 @@ const drawRoute = (data) => {
   const polyline = new window.kakao.maps.Polyline({
     path,
     strokeWeight: 5,
-    strokeColor: '#2c7be5',
+    strokeColor: '#2eb872',
     strokeOpacity: 0.8,
   })
   polyline.setMap(map)
@@ -414,6 +431,165 @@ const zoomOut = () => {
   map.setLevel(map.getLevel() + 1)
 }
 
+// 시설 검색
+const searchFacility = async () => {
+  if (!facilityQuery.value.trim()) return
+  facilityLoading.value = true
+  facilityResults.value = []
+  selectedFacility.value = null
+  try {
+    const [facilityRes, kakaoRes] = await Promise.allSettled([
+      infraAPI.searchFacilities(facilityQuery.value),
+      routeAPI.searchAddress(facilityQuery.value),
+    ])
+    const dbResults = facilityRes.status === 'fulfilled'
+      ? (Array.isArray(facilityRes.value.data) ? facilityRes.value.data : [])
+      : []
+    const kakaoResults = kakaoRes.status === 'fulfilled'
+      ? (Array.isArray(kakaoRes.value.data) ? kakaoRes.value.data : []).map(p => ({
+          ...p,
+          source: 'kakao',
+        }))
+      : []
+    facilityResults.value = [...dbResults, ...kakaoResults]
+    clearFacilityMarkers()
+    facilityResults.value.forEach(f => {
+      if (!f.lat || !f.lng) return
+      const marker = new window.kakao.maps.Marker({
+        position: new window.kakao.maps.LatLng(f.lat, f.lng),
+        map,
+      })
+      window.kakao.maps.event.addListener(marker, 'click', () => selectFacility(f))
+      facilityMarkers.push(marker)
+    })
+    if (facilityResults.value.length > 0) {
+      const bounds = new window.kakao.maps.LatLngBounds()
+      facilityResults.value.forEach(f => {
+        if (f.lat && f.lng) bounds.extend(new window.kakao.maps.LatLng(f.lat, f.lng))
+      })
+      map.setBounds(bounds)
+    }
+  } catch {
+    facilityResults.value = []
+  } finally {
+    facilityLoading.value = false
+  }
+}
+
+const selectFacility = (facility) => {
+  selectedFacility.value = facility
+  if (facility.lat && facility.lng) {
+    map.setCenter(new window.kakao.maps.LatLng(facility.lat, facility.lng))
+    map.setLevel(3)
+  }
+}
+
+const clearFacilityMarkers = () => {
+  facilityMarkers.forEach(m => m.setMap(null))
+  facilityMarkers = []
+}
+
+const facilityTypeLabel = (type) => {
+  const map = { ramp: '경사로', elevator: '엘리베이터', braille: '점자블록', toilet: '장애인 화장실', parking: '장애인 주차구역', other: '기타' }
+  return map[type] || type || ''
+}
+
+// 지도 클릭 → 위치 정보 조회
+const handleMapClick = (latLng) => {
+  if (clickedMarker) {
+    clickedMarker.setMap(null)
+    clickedMarker = null
+  }
+  clickedPlace.value = null
+  previewMap = null
+
+  const lat = latLng.getLat()
+  const lng = latLng.getLng()
+
+  clickedMarker = new window.kakao.maps.Marker({ position: latLng, map })
+
+  const geocoder = new window.kakao.maps.services.Geocoder()
+  geocoder.coord2Address(lng, lat, (result, geoStatus) => {
+    const addr = (geoStatus === window.kakao.maps.services.Status.OK && result[0]) ? result[0] : null
+
+    const places = new window.kakao.maps.services.Places()
+    places.keywordSearch(
+      addr?.address?.address_name || '장소',
+      (placeResult, placeStatus) => {
+        const nearestPlace = (placeStatus === window.kakao.maps.services.Status.OK && placeResult.length) ? placeResult[0] : null
+
+        clickedPlace.value = {
+          name: nearestPlace?.place_name || '',
+          address: addr?.road_address?.address_name || addr?.address?.address_name || '',
+          jibun: addr?.address?.address_name || '',
+          phone: nearestPlace?.phone || '',
+          category: nearestPlace?.category_name || '',
+          placeUrl: nearestPlace?.place_url || '',
+          kakaoMapLink: `https://map.kakao.com/link/map/${encodeURIComponent(nearestPlace?.place_name || addr?.road_address?.address_name || '위치')},${lat},${lng}`,
+          lat,
+          lng,
+        }
+
+        nextTick(() => {
+          if (previewMapContainer.value) {
+            const previewPos = new window.kakao.maps.LatLng(lat, lng)
+            previewMap = new window.kakao.maps.Map(previewMapContainer.value, {
+              center: previewPos,
+              level: 4,
+              draggable: false,
+              scrollwheel: false,
+              disableDoubleClickZoom: true,
+            })
+            new window.kakao.maps.Marker({ position: previewPos, map: previewMap })
+          }
+        })
+      },
+      { location: latLng, radius: 50, size: 1, sort: 'distance' }
+    )
+  })
+}
+
+const clearOrigin = () => {
+  originQuery.value = ''
+  originResult.value = null
+  originSuggestions.value = []
+}
+
+const clearDest = () => {
+  destQuery.value = ''
+  destResult.value = null
+  destSuggestions.value = []
+}
+
+const clearFacilityQuery = () => {
+  facilityQuery.value = ''
+  facilityResults.value = []
+  selectedFacility.value = null
+  clearFacilityMarkers()
+}
+
+const clearClickedPlace = () => {
+  clickedPlace.value = null
+  if (clickedMarker) {
+    clickedMarker.setMap(null)
+    clickedMarker = null
+  }
+}
+
+const setAsOrigin = (place) => {
+  originResult.value = { name: place.address || place.name, lat: place.lat, lng: place.lng }
+  originQuery.value = place.address || place.name
+  panelMode.value = 'route'
+  clearClickedPlace()
+}
+
+const setAsDest = (place) => {
+  destResult.value = { name: place.address || place.name, lat: place.lat, lng: place.lng }
+  destQuery.value = place.address || place.name
+  panelMode.value = 'route'
+  clearClickedPlace()
+}
+
 const formatDuration = (seconds) => {
   const min = Math.floor(seconds / 60)
   return min < 60 ? `${min}분` : `${Math.floor(min/60)}시간 ${min%60}분`
@@ -427,92 +603,210 @@ const formatDistance = (meters) => {
 <template>
   <div class="home">
     <div class="side-panel">
-      <h2>경로 탐색</h2>
-
-      <div class="transport-bar">
-        <button
-          v-for="opt in transportOptions"
-          :key="opt.value"
-          :class="['transport-btn', { active: transportType === opt.value }]"
-          @click="transportType = opt.value"
-        >
-          {{ opt.label }}
+      <!-- 패널 탭 -->
+      <div class="panel-tabs">
+        <button :class="['panel-tab', { active: panelMode === 'route' }]" @click="panelMode = 'route'">
+          길찾기
+        </button>
+        <button :class="['panel-tab', { active: panelMode === 'facility' }]" @click="panelMode = 'facility'">
+          시설 검색
         </button>
       </div>
 
-      <div class="search-box">
-        <input
-          v-model="originQuery"
-          type="text"
-          placeholder="출발지 검색"
-          @keyup="searchAddress(originQuery, 'origin')"
-        />
-        <ul v-if="originSuggestions.length" class="suggestions">
-          <li v-for="place in originSuggestions" :key="place.name" @click="selectOrigin(place)">
-            <span class="place-name">{{ place.name }}</span>
-            <span class="place-address">{{ place.address }}</span>
-          </li>
-        </ul>
-      </div>
+      <!-- 길찾기 패널 -->
+      <template v-if="panelMode === 'route'">
+        <div class="transport-bar">
+          <button
+            v-for="opt in transportOptions"
+            :key="opt.value"
+            :class="['transport-btn', { active: transportType === opt.value }]"
+            @click="transportType = opt.value"
+          >
+            {{ opt.label }}
+          </button>
+        </div>
 
-      <div class="search-box">
-        <input
-          v-model="destQuery"
-          type="text"
-          placeholder="목적지 검색"
-          @keyup="searchAddress(destQuery, 'dest')"
-        />
-        <ul v-if="destSuggestions.length" class="suggestions">
-          <li v-for="place in destSuggestions" :key="place.name" @click="selectDest(place)">
-            <span class="place-name">{{ place.name }}</span>
-            <span class="place-address">{{ place.address }}</span>
-          </li>
-        </ul>
-      </div>
+        <div class="search-box">
+          <input
+            v-model="originQuery"
+            type="text"
+            placeholder="출발지 검색"
+            @keyup="searchAddress(originQuery, 'origin')"
+          />
+          <button v-if="originQuery" class="input-clear" @click="clearOrigin">✕</button>
+          <ul v-if="originSuggestions.length" class="suggestions">
+            <li v-for="place in originSuggestions" :key="place.name" @click="selectOrigin(place)">
+              <span class="place-name">{{ place.name }}</span>
+              <span class="place-address">{{ place.address }}</span>
+            </li>
+          </ul>
+        </div>
 
-      <p v-if="errorMsg" class="error">{{ errorMsg }}</p>
+        <div class="search-box">
+          <input
+            v-model="destQuery"
+            type="text"
+            placeholder="목적지 검색"
+            @keyup="searchAddress(destQuery, 'dest')"
+          />
+          <button v-if="destQuery" class="input-clear" @click="clearDest">✕</button>
+          <ul v-if="destSuggestions.length" class="suggestions">
+            <li v-for="place in destSuggestions" :key="place.name" @click="selectDest(place)">
+              <span class="place-name">{{ place.name }}</span>
+              <span class="place-address">{{ place.address }}</span>
+            </li>
+          </ul>
+        </div>
 
-      <button @click="searchRoute" :disabled="loading" class="search-btn">
-        {{ loading ? '탐색 중...' : '경로 탐색' }}
-      </button>
+        <p v-if="errorMsg" class="error">{{ errorMsg }}</p>
 
-      <div v-if="routeResult" class="route-result">
-        <h3>경로 정보</h3>
-        <div class="route-info">
-          <div class="info-item">
-            <span class="label">이동 수단</span>
-            <span class="value">{{ transportOptions.find(t => t.value === transportType)?.label }}</span>
+        <button @click="searchRoute" :disabled="loading" class="search-btn">
+          {{ loading ? '탐색 중...' : '경로 탐색' }}
+        </button>
+
+        <div v-if="routeResult" class="route-result">
+          <h3>경로 정보</h3>
+          <div class="route-info">
+            <div class="info-item">
+              <span class="label">이동 수단</span>
+              <span class="value">{{ transportOptions.find(t => t.value === transportType)?.label }}</span>
+            </div>
+            <div class="info-item">
+              <span class="label">거리</span>
+              <span class="value">{{ formatDistance(routeResult.route.distance) }}</span>
+            </div>
+            <div class="info-item">
+              <span class="label">예상 시간</span>
+              <span class="value">{{ formatDuration(routeResult.route.duration) }}</span>
+            </div>
+            <div class="info-item">
+              <span class="label">안전 점수</span>
+              <span class="value safety">{{ (routeResult.route.safety_score * 100).toFixed(0) }}점</span>
+            </div>
           </div>
-          <div class="info-item">
-            <span class="label">거리</span>
-            <span class="value">{{ formatDistance(routeResult.route.distance) }}</span>
+
+          <div v-if="routeResult.weather" class="weather-info">
+            <p>🌤 {{ routeResult.weather.description }} {{ routeResult.weather.temp }}°C</p>
+            <p v-if="routeResult.weather_applied" class="weather-warning">
+              ⚠️ 악천후로 인해 이동시간이 20% 증가되었습니다.
+            </p>
           </div>
-          <div class="info-item">
-            <span class="label">예상 시간</span>
-            <span class="value">{{ formatDuration(routeResult.route.duration) }}</span>
+
+          <div v-if="routeResult.nearby" class="nearby-info">
+            <p>🚦 신호등 {{ routeResult.nearby.traffic_lights?.length || 0 }}개</p>
+            <p>♿ 편의시설 {{ routeResult.nearby.facilities?.length || 0 }}개</p>
+            <p>🏥 지원센터 {{ routeResult.nearby.support_centers?.length || 0 }}개</p>
           </div>
-          <div class="info-item">
-            <span class="label">안전 점수</span>
-            <span class="value safety">{{ (routeResult.route.safety_score * 100).toFixed(0) }}점</span>
+
+          <button v-if="auth.isLoggedIn" class="favorite-btn" @click="addFavorite">
+            ⭐ 즐겨찾기 추가
+          </button>
+        </div>
+      </template>
+
+      <!-- 시설 검색 패널 -->
+      <template v-if="panelMode === 'facility'">
+        <div class="search-box">
+          <input
+            v-model="facilityQuery"
+            type="text"
+            placeholder="시설명을 검색하세요 (예: 병원, 엘리베이터)"
+            @keyup.enter="searchFacility"
+          />
+          <button v-if="facilityQuery" class="input-clear" @click="clearFacilityQuery">✕</button>
+        </div>
+        <button @click="searchFacility" :disabled="facilityLoading" class="search-btn">
+          {{ facilityLoading ? '검색 중...' : '시설 검색' }}
+        </button>
+
+        <!-- 선택된 시설 상세 -->
+        <div v-if="selectedFacility" class="facility-detail">
+          <button class="facility-detail-close" @click="selectedFacility = null">✕</button>
+          <h3>{{ selectedFacility.name }}</h3>
+          <span v-if="selectedFacility.facility_type" class="facility-type-badge">
+            {{ facilityTypeLabel(selectedFacility.facility_type) }}
+          </span>
+          <div class="facility-detail-body">
+            <p v-if="selectedFacility.address">📍 {{ selectedFacility.address }}</p>
+            <p v-if="selectedFacility.sido">📌 {{ selectedFacility.sido }} {{ selectedFacility.sigungu }}</p>
+            <p v-if="selectedFacility.phone">📞 <a :href="'tel:' + selectedFacility.phone">{{ selectedFacility.phone }}</a></p>
+            <p v-if="selectedFacility.is_available !== undefined">
+              상태: <span :class="selectedFacility.is_available ? 'status-open' : 'status-closed'">
+                {{ selectedFacility.is_available ? '이용 가능' : '이용 불가' }}
+              </span>
+            </p>
+          </div>
+          <div class="facility-actions">
+            <button class="action-btn" @click="setAsOrigin(selectedFacility)">출발지로 설정</button>
+            <button class="action-btn action-btn-primary" @click="setAsDest(selectedFacility)">목적지로 설정</button>
           </div>
         </div>
 
-        <div v-if="routeResult.weather" class="weather-info">
-          <p>🌤 {{ routeResult.weather.description }} {{ routeResult.weather.temp }}°C</p>
-          <p v-if="routeResult.weather_applied" class="weather-warning">
-            ⚠️ 악천후로 인해 이동시간이 20% 증가되었습니다.
+        <!-- 검색 결과 목록 -->
+        <div v-if="facilityResults.length && !selectedFacility" class="facility-list">
+          <div
+            v-for="(f, i) in facilityResults"
+            :key="i"
+            class="facility-item"
+            @click="selectFacility(f)"
+          >
+            <div class="facility-item-name">{{ f.name }}</div>
+            <div class="facility-item-address">{{ f.address }}</div>
+            <span v-if="f.facility_type" class="facility-type-badge small">
+              {{ facilityTypeLabel(f.facility_type) }}
+            </span>
+          </div>
+        </div>
+
+        <p v-if="!facilityLoading && facilityResults.length === 0 && facilityQuery" class="no-result">
+          검색 결과가 없습니다.
+        </p>
+      </template>
+
+      <!-- 지도 클릭 위치 정보 -->
+      <div v-if="clickedPlace" class="clicked-place">
+        <button class="facility-detail-close" @click="clearClickedPlace">✕</button>
+
+        <div ref="previewMapContainer" class="clicked-place-img"></div>
+
+        <h4 v-if="clickedPlace.name">{{ clickedPlace.name }}</h4>
+        <h4 v-else>선택한 위치</h4>
+
+        <p v-if="clickedPlace.category" class="clicked-category">{{ clickedPlace.category }}</p>
+
+        <div class="facility-detail-body">
+          <p>📍 {{ clickedPlace.address }}</p>
+          <p v-if="clickedPlace.jibun && clickedPlace.jibun !== clickedPlace.address" class="jibun">
+            (지번) {{ clickedPlace.jibun }}
           </p>
+          <p v-if="clickedPlace.phone">📞 <a :href="'tel:' + clickedPlace.phone">{{ clickedPlace.phone }}</a></p>
         </div>
 
-        <div v-if="routeResult.nearby" class="nearby-info">
-          <p>🚦 신호등 {{ routeResult.nearby.traffic_lights?.length || 0 }}개</p>
-          <p>♿ 편의시설 {{ routeResult.nearby.facilities?.length || 0 }}개</p>
-          <p>🏥 지원센터 {{ routeResult.nearby.support_centers?.length || 0 }}개</p>
+        <div class="clicked-links">
+          <a
+            v-if="clickedPlace.placeUrl"
+            :href="clickedPlace.placeUrl"
+            target="_blank"
+            rel="noopener"
+            class="clicked-link-btn"
+          >
+            카카오맵에서 보기
+          </a>
+          <a
+            v-else
+            :href="clickedPlace.kakaoMapLink"
+            target="_blank"
+            rel="noopener"
+            class="clicked-link-btn"
+          >
+            카카오맵에서 보기
+          </a>
         </div>
 
-        <button v-if="auth.isLoggedIn" class="favorite-btn" @click="addFavorite">
-          ⭐ 즐겨찾기 추가
-        </button>
+        <div class="facility-actions">
+          <button class="action-btn" @click="setAsOrigin(clickedPlace)">출발지로 설정</button>
+          <button class="action-btn action-btn-primary" @click="setAsDest(clickedPlace)">목적지로 설정</button>
+        </div>
       </div>
     </div>
 
@@ -566,9 +860,32 @@ const formatDistance = (meters) => {
   flex-direction: column;
   gap: 12px;
 }
+/* 패널 탭 */
+.panel-tabs {
+  display: flex;
+  gap: 0;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.panel-tab {
+  flex: 1;
+  padding: 10px;
+  border: none;
+  background: white;
+  cursor: pointer;
+  font-size: calc(var(--base-font-size, 16px) - 2px);
+  font-weight: 600;
+  color: #666;
+  transition: all 0.2s;
+}
+.panel-tab.active {
+  background: #2eb872;
+  color: white;
+}
 h2 {
   font-size: calc(var(--base-font-size, 16px) + 2px);
-  color: #2c7be5;
+  color: #2eb872;
   font-weight: bold;
 }
 .transport-bar {
@@ -587,16 +904,16 @@ h2 {
   text-align: center;
 }
 .transport-btn.active {
-  background: #2c7be5;
+  background: #2eb872;
   color: white;
-  border-color: #2c7be5;
+  border-color: #2eb872;
 }
 .search-box {
   position: relative;
 }
 .search-box input {
   width: 100%;
-  padding: 10px 14px;
+  padding: 10px 32px 10px 14px;
   border: 1px solid #ddd;
   border-radius: 8px;
   font-size: calc(var(--base-font-size, 16px) - 2px);
@@ -604,7 +921,30 @@ h2 {
   box-sizing: border-box;
 }
 .search-box input:focus {
-  border-color: #2c7be5;
+  border-color: #2eb872;
+}
+.input-clear {
+  position: absolute;
+  right: 10px;
+  top: 20px;
+  transform: translateY(-50%);
+  background: #bbb;
+  border: none;
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  font-size: 12px;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  padding: 0;
+  z-index: 2;
+}
+.input-clear:hover {
+  background: #888;
 }
 .suggestions {
   position: absolute;
@@ -628,7 +968,7 @@ h2 {
   gap: 2px;
 }
 .suggestions li:hover {
-  background-color: #f0f4ff;
+  background-color: #e6f7ee;
 }
 .place-name {
   font-size: calc(var(--base-font-size, 16px) - 2px);
@@ -640,7 +980,7 @@ h2 {
 }
 .search-btn {
   padding: 12px;
-  background-color: #2c7be5;
+  background-color: #2eb872;
   color: white;
   border: none;
   border-radius: 8px;
@@ -655,7 +995,7 @@ h2 {
   font-size: calc(var(--base-font-size, 16px) - 3px);
 }
 .route-result {
-  background: #f0f4ff;
+  background: #e6f7ee;
   border-radius: 12px;
   padding: 16px;
   display: flex;
@@ -679,7 +1019,7 @@ h2 {
 }
 .label { color: #666; }
 .value { font-weight: bold; }
-.safety { color: #2c7be5; }
+.safety { color: #2eb872; }
 .weather-info {
   font-size: calc(var(--base-font-size, 16px) - 3px);
   color: #555;
@@ -704,12 +1044,192 @@ h2 {
 .favorite-btn {
   padding: 10px;
   background: white;
-  border: 1px solid #2c7be5;
-  color: #2c7be5;
+  border: 1px solid #2eb872;
+  color: #2eb872;
   border-radius: 8px;
   cursor: pointer;
   font-size: calc(var(--base-font-size, 16px) - 2px);
   font-weight: bold;
+}
+
+/* 시설 검색 결과 목록 */
+.facility-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+.facility-item {
+  padding: 12px;
+  background: #f8f9fa;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.facility-item:hover {
+  background: #e6f7ee;
+}
+.facility-item-name {
+  font-size: calc(var(--base-font-size, 16px) - 2px);
+  font-weight: 600;
+  color: #222;
+}
+.facility-item-address {
+  font-size: calc(var(--base-font-size, 16px) - 4px);
+  color: #888;
+  margin-top: 2px;
+}
+.facility-type-badge {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: #2eb872;
+  color: white;
+  font-size: calc(var(--base-font-size, 16px) - 5px);
+  font-weight: 600;
+}
+.facility-type-badge.small {
+  font-size: calc(var(--base-font-size, 16px) - 6px);
+  padding: 1px 6px;
+}
+.no-result {
+  text-align: center;
+  color: #999;
+  font-size: calc(var(--base-font-size, 16px) - 3px);
+  padding: 20px 0;
+}
+
+/* 시설 상세 */
+.facility-detail {
+  position: relative;
+  background: #e6f7ee;
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.facility-detail h3 {
+  font-size: calc(var(--base-font-size, 16px) + 1px);
+  font-weight: 700;
+  color: #222;
+  margin: 0;
+  padding-right: 24px;
+}
+.facility-detail-close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  background: none;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  color: #999;
+}
+.facility-detail-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.facility-detail-body p {
+  margin: 0;
+  font-size: calc(var(--base-font-size, 16px) - 3px);
+  color: #555;
+}
+.facility-detail-body a {
+  color: #2eb872;
+  text-decoration: none;
+}
+.status-open { color: #38a169; font-weight: 600; }
+.status-closed { color: #e53e3e; font-weight: 600; }
+
+.facility-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+.action-btn {
+  flex: 1;
+  padding: 8px;
+  border: 1px solid #2eb872;
+  border-radius: 8px;
+  background: white;
+  color: #2eb872;
+  font-size: calc(var(--base-font-size, 16px) - 3px);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.action-btn:hover {
+  background: #e6f7ee;
+}
+.action-btn-primary {
+  background: #2eb872;
+  color: white;
+}
+.action-btn-primary:hover {
+  background: #259a60;
+}
+
+/* 지도 클릭 위치 */
+.clicked-place {
+  position: relative;
+  background: #fff8e1;
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.clicked-place h4 {
+  margin: 0;
+  font-size: calc(var(--base-font-size, 16px) - 1px);
+  color: #333;
+  font-weight: 700;
+}
+.clicked-place p {
+  margin: 0;
+  font-size: calc(var(--base-font-size, 16px) - 3px);
+  color: #555;
+}
+.clicked-place .jibun {
+  color: #999;
+  font-size: calc(var(--base-font-size, 16px) - 4px);
+}
+.clicked-place-img {
+  width: 100%;
+  height: 150px;
+  border-radius: 8px;
+  background: #eee;
+  overflow: hidden;
+}
+.clicked-category {
+  margin: 0;
+  font-size: calc(var(--base-font-size, 16px) - 4px);
+  color: #2eb872;
+  font-weight: 500;
+}
+.clicked-links {
+  display: flex;
+  gap: 8px;
+}
+.clicked-link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 7px 12px;
+  background: #fee500;
+  color: #3c1e1e;
+  border-radius: 8px;
+  font-size: calc(var(--base-font-size, 16px) - 3px);
+  font-weight: 600;
+  text-decoration: none;
+  transition: background 0.15s;
+}
+.clicked-link-btn:hover {
+  background: #fdd835;
 }
 
 /* 시설 카테고리 */
@@ -793,7 +1313,7 @@ h2 {
   transition: background 0.2s;
 }
 .control-btn:hover {
-  background: #f0f4ff;
+  background: #e6f7ee;
 }
 .location-btn {
   font-size: 20px;
@@ -854,14 +1374,14 @@ h2 {
   color: #666;
 }
 .marker-overlay-phone {
-  color: #2c7be5;
+  color: #2eb872;
   text-decoration: none;
 }
 .marker-overlay-phone:hover {
   text-decoration: underline;
 }
 .marker-overlay-link {
-  color: #2c7be5;
+  color: #2eb872;
   text-decoration: none;
   font-weight: 600;
 }
@@ -890,7 +1410,7 @@ h2 {
   font-family: 'Pretendard', -apple-system, sans-serif;
 }
 .route-marker-origin {
-  background: #2c7be5;
+  background: #2eb872;
 }
 .route-marker-dest {
   background: #e53e3e;

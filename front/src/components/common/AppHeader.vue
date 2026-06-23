@@ -21,7 +21,7 @@ const closeMenu = () => {
 <template>
   <header class="header">
     <div class="header-inner">
-      <RouterLink to="/" class="logo" @click="closeMenu">🦽 SafeWay</RouterLink>
+      <RouterLink to="/" class="logo" @click="closeMenu">SafeWay</RouterLink>
 
       <!-- 데스크탑 네비 -->
       <nav class="nav desktop-nav">
@@ -70,7 +70,7 @@ const closeMenu = () => {
 
 <style scoped>
 .header {
-  background-color: #2c7be5;
+  background-color: #2eb872;
   padding: 0 24px;
   height: 60px;
   position: sticky;
@@ -106,8 +106,8 @@ const closeMenu = () => {
   background: transparent;
   border: 1px solid white;
   color: white;
-  padding: 4px 12px;
-  border-radius: 4px;
+  padding: 6px 14px;
+  border-radius: 6px;
   cursor: pointer;
   font-size: calc(var(--base-font-size, 16px) - 2px);
 }
@@ -119,8 +119,8 @@ const closeMenu = () => {
   background: transparent;
   border: 1px solid white;
   color: white !important;
-  padding: 4px 12px;
-  border-radius: 4px;
+  padding: 6px 14px;
+  border-radius: 6px;
   font-size: calc(var(--base-font-size, 16px) - 2px);
   text-decoration: none !important;
 }
@@ -146,7 +146,7 @@ const closeMenu = () => {
 
 /* 모바일 메뉴 */
 .mobile-menu {
-  background: #1a65c8;
+  background: #1d7a50;
   padding: 16px 24px;
   display: flex;
   flex-direction: column;

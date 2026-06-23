@@ -170,7 +170,7 @@ onMounted(fetchPost)
 .back-btn {
   background: none;
   border: none;
-  color: #2c7be5;
+  color: #2eb872;
   cursor: pointer;
   font-size: calc(var(--base-font-size, 16px) - 2px);
   padding: 0;
@@ -193,8 +193,8 @@ onMounted(fetchPost)
 .category-badge {
   font-size: calc(var(--base-font-size, 16px) - 4px);
   padding: 4px 10px;
-  background: #f0f4ff;
-  color: #2c7be5;
+  background: #e6f7ee;
+  color: #2eb872;
   border-radius: 20px;
   font-weight: bold;
 }
@@ -204,8 +204,8 @@ onMounted(fetchPost)
 }
 .edit-btn {
   padding: 4px 12px;
-  background: #f0f4ff;
-  color: #2c7be5;
+  background: #e6f7ee;
+  color: #2eb872;
   border: none;
   border-radius: 6px;
   cursor: pointer;
@@ -282,11 +282,11 @@ onMounted(fetchPost)
   outline: none;
 }
 .comment-form input:focus {
-  border-color: #2c7be5;
+  border-color: #2eb872;
 }
 .comment-form button {
   padding: 10px 20px;
-  background: #2c7be5;
+  background: #2eb872;
   color: white;
   border: none;
   border-radius: 8px;

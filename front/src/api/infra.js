@@ -24,4 +24,10 @@ export const infraAPI = {
 
   getPlaces: (lat, lng, type) =>
     api.get('/api/infrastructure/places/', { params: { lat, lng, type } }),
+
+  searchFacilities: (q, type = '') =>
+    api.get('/api/infrastructure/facilities/search/', { params: { q, ...(type && { type }) } }),
+
+  getFacilityDetail: (id) =>
+    api.get(`/api/infrastructure/facilities/${id}/`),
 }

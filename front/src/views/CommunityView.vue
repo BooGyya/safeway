@@ -163,7 +163,7 @@ h2 {
 }
 .write-btn {
   padding: 10px 20px;
-  background: #2c7be5;
+  background: #2eb872;
   color: white;
   border: none;
   border-radius: 8px;
@@ -217,8 +217,8 @@ h2 {
 .notice-category {
   font-size: calc(var(--base-font-size, 16px) - 4px);
   padding: 2px 8px;
-  background: #f0f4ff;
-  color: #2c7be5;
+  background: #e6f7ee;
+  color: #2eb872;
   border-radius: 10px;
   font-weight: bold;
   flex-shrink: 0;
@@ -251,9 +251,9 @@ h2 {
   color: #666;
 }
 .sort-btn.active {
-  background: #2c7be5;
+  background: #2eb872;
   color: white;
-  border-color: #2c7be5;
+  border-color: #2eb872;
 }
 .post-list {
   display: flex;
@@ -282,8 +282,8 @@ h2 {
 .category-badge {
   font-size: calc(var(--base-font-size, 16px) - 4px);
   padding: 4px 10px;
-  background: #f0f4ff;
-  color: #2c7be5;
+  background: #e6f7ee;
+  color: #2eb872;
   border-radius: 20px;
   font-weight: bold;
 }

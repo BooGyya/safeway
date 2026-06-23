@@ -428,9 +428,9 @@ h2 {
   color: #666;
 }
 .tab-btn.active {
-  background: #2c7be5;
+  background: #2eb872;
   color: white;
-  border-color: #2c7be5;
+  border-color: #2eb872;
 }
 .tab-content {
   background: white;
@@ -446,13 +446,13 @@ h2 {
   align-items: center;
   gap: 16px;
   padding: 16px;
-  background: #f0f4ff;
+  background: #e6f7ee;
   border-radius: 12px;
 }
 .user-avatar {
   width: 56px;
   height: 56px;
-  background: #2c7be5;
+  background: #2eb872;
   color: white;
   border-radius: 50%;
   display: flex;
@@ -476,7 +476,7 @@ h2 {
   display: inline-block;
   margin-top: 6px;
   padding: 2px 10px;
-  background: #2c7be5;
+  background: #2eb872;
   color: white;
   border-radius: 20px;
   font-size: calc(var(--base-font-size, 16px) - 4px);
@@ -498,7 +498,7 @@ h2 {
 .stat-value {
   font-size: calc(var(--base-font-size, 16px) + 6px);
   font-weight: bold;
-  color: #2c7be5;
+  color: #2eb872;
 }
 .stat-label {
   font-size: calc(var(--base-font-size, 16px) - 4px);
@@ -530,7 +530,7 @@ h2 {
   color: #333;
 }
 .small-item.clickable { cursor: pointer; }
-.small-item.clickable:hover { background: #f0f4ff; }
+.small-item.clickable:hover { background: #e6f7ee; }
 .small-sub {
   font-size: calc(var(--base-font-size, 16px) - 4px);
   color: #aaa;
@@ -565,11 +565,11 @@ input[type="password"] {
 }
 input[type="text"]:focus,
 input[type="password"]:focus {
-  border-color: #2c7be5;
+  border-color: #2eb872;
 }
 input[type="range"] {
   width: 100%;
-  accent-color: #2c7be5;
+  accent-color: #2eb872;
 }
 .option-group {
   display: flex;
@@ -586,13 +586,13 @@ input[type="range"] {
   color: #666;
 }
 .opt-btn.active {
-  background: #2c7be5;
+  background: #2eb872;
   color: white;
-  border-color: #2c7be5;
+  border-color: #2eb872;
 }
 .save-btn {
   padding: 12px;
-  background: #2c7be5;
+  background: #2eb872;
   color: white;
   border: none;
   border-radius: 8px;
