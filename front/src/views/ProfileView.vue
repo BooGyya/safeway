@@ -58,6 +58,18 @@ const passwordForm = ref({
   new_password: ''
 })
 
+const maskUsername = (username) => {
+  if (!username) return ''
+  const visible = username.slice(0, 2)
+  const masked = '*'.repeat(Math.max(username.length - 2, 2))
+  return `${visible}${masked}`
+}
+
+const displayName = (nickname, username) => {
+  if (!nickname) return username
+  return `${nickname}(${maskUsername(username)})`
+}
+
 const applyFontSize = (size) => {
   const root = document.documentElement
   if (size === 'small') root.style.setProperty('--base-font-size', '14px')
@@ -114,7 +126,6 @@ const fetchFavorites = async () => {
 const fetchHistory = async () => {
   try {
     const { data } = await routeAPI.getHistory()
-    console.log('history data:', data)
     history.value = data
   } catch {
     console.error('히스토리 로드 실패')
@@ -170,7 +181,7 @@ const handleChangePassword = async () => {
     await authAPI.changePassword({
       old_password: passwordForm.value.old_password,
       new_password: passwordForm.value.new_password,
-      new_password2: passwordForm.value.new_password  // 추가
+      new_password2: passwordForm.value.new_password
     })
     alert('비밀번호가 변경되었습니다.')
     passwordForm.value = { old_password: '', new_password: '' }
@@ -248,9 +259,11 @@ const formatDate = (dateStr) => {
       <!-- 마이페이지 홈 -->
       <div v-if="activeTab === 'mypage' && mypage" class="tab-content">
         <div class="user-info-box">
-          <div class="user-avatar">{{ mypage.user?.username?.charAt(0)?.toUpperCase() }}</div>
+          <div class="user-avatar">
+            {{ mypage.user?.nickname?.charAt(0)?.toUpperCase() || mypage.user?.username?.charAt(0)?.toUpperCase() }}
+          </div>
           <div class="user-details">
-            <h3>{{ mypage.user?.username }}</h3>
+            <h3>{{ displayName(mypage.user?.nickname, mypage.user?.username) }}</h3>
             <p>{{ mypage.user?.email }}</p>
             <span class="user-type-badge">{{ mypage.user?.user_type }}</span>
           </div>
@@ -258,7 +271,7 @@ const formatDate = (dateStr) => {
 
         <div class="stats-grid">
           <div class="stat-item" @click="activeTab = 'history'">
-            <span class="stat-value">{{ mypage.stats?.route_count || 0 }}</span>
+            <span class="stat-value">{{ mypage.stats?.total_routes || 0 }}</span>
             <span class="stat-label">경로 탐색</span>
           </div>
           <div class="stat-item" @click="activeTab = 'favorites'">
@@ -270,7 +283,7 @@ const formatDate = (dateStr) => {
             <span class="stat-label">게시글</span>
           </div>
           <div class="stat-item" @click="goToTab('followers')">
-            <span class="stat-value">{{ mypage.stats?.follower_count || 0 }}</span>
+            <span class="stat-value">{{ mypage.stats?.followers_count || 0 }}</span>
             <span class="stat-label">팔로워</span>
           </div>
           <div class="stat-item" @click="goToTab('followings')">
@@ -281,7 +294,7 @@ const formatDate = (dateStr) => {
 
         <div class="section-box">
           <h4>🐾 최근 경로</h4>
-          <div v-if="mypage.recent_routes?.length === 0" class="empty-small">없어요</div>
+          <div v-if="!mypage.recent_routes?.length" class="empty-small">없어요</div>
           <div v-else class="small-list">
             <div v-for="route in mypage.recent_routes" :key="route.id" class="small-item">
               <span>{{ route.origin_name }} → {{ route.dest_name }}</span>
@@ -290,10 +303,9 @@ const formatDate = (dateStr) => {
           </div>
         </div>
 
-        <!-- 최근 게시글 -->
         <div class="section-box">
           <h4>📝 최근 게시글</h4>
-          <div v-if="mypage.my_posts?.length === 0" class="empty-small">없어요</div>
+          <div v-if="!mypage.my_posts?.length" class="empty-small">없어요</div>
           <div v-else class="small-list">
             <div
               v-for="post in mypage.my_posts"
@@ -307,10 +319,9 @@ const formatDate = (dateStr) => {
           </div>
         </div>
 
-        <!-- 최근 댓글 -->
         <div class="section-box">
           <h4>💬 최근 댓글</h4>
-          <div v-if="mypage.my_comments?.length === 0" class="empty-small">없어요</div>
+          <div v-if="!mypage.my_comments?.length" class="empty-small">없어요</div>
           <div v-else class="small-list">
             <div
               v-for="comment in mypage.my_comments"
@@ -328,6 +339,18 @@ const formatDate = (dateStr) => {
       <!-- 프로필 설정 -->
       <div v-if="activeTab === 'profile'" class="tab-content">
         <div class="form-box">
+          <div class="form-group">
+            <label>별명</label>
+            <input v-model="form.nickname" type="text" placeholder="별명을 입력하세요" />
+          </div>
+          <div class="form-group">
+            <label>이름</label>
+            <input v-model="form.name" type="text" placeholder="이름을 입력하세요" />
+          </div>
+          <div class="form-group">
+            <label>전화번호</label>
+            <input v-model="form.phone" type="text" placeholder="01012345678" />
+          </div>
           <div class="form-group">
             <label>교통약자 유형</label>
             <div class="option-group">
@@ -367,19 +390,6 @@ const formatDate = (dateStr) => {
           <div class="form-group">
             <label>SOS 번호</label>
             <input v-model="form.sos_number" type="text" placeholder="01012345678" />
-          </div>
-
-          <div class="form-group">
-            <label>별명</label>
-            <input v-model="form.nickname" type="text" placeholder="별명을 입력하세요" />
-          </div>
-          <div class="form-group">
-            <label>이름</label>
-            <input v-model="form.name" type="text" placeholder="이름을 입력하세요" />
-          </div>
-          <div class="form-group">
-            <label>전화번호</label>
-            <input v-model="form.phone" type="text" placeholder="01012345678" />
           </div>
 
           <p v-if="successMsg" class="success-msg">✅ {{ successMsg }}</p>
@@ -452,8 +462,10 @@ const formatDate = (dateStr) => {
         <div v-if="followers.length === 0" class="empty">팔로워가 없어요.</div>
         <div v-else class="list-box">
           <div v-for="f in followers" :key="f.id" class="list-item follow-item">
-            <div class="follow-avatar">{{ f.follower_username?.charAt(0)?.toUpperCase() }}</div>
-            <span class="follow-name">{{ f.follower_username }}</span>
+            <div class="follow-avatar">
+              {{ f.follower_nickname?.charAt(0)?.toUpperCase() || f.follower_username?.charAt(0)?.toUpperCase() }}
+            </div>
+            <span class="follow-name">{{ displayName(f.follower_nickname, f.follower_username) }}</span>
           </div>
         </div>
       </div>
@@ -467,8 +479,10 @@ const formatDate = (dateStr) => {
         <div v-if="followings.length === 0" class="empty">팔로잉하는 사용자가 없어요.</div>
         <div v-else class="list-box">
           <div v-for="f in followings" :key="f.id" class="list-item follow-item">
-            <div class="follow-avatar">{{ f.following_username?.charAt(0)?.toUpperCase() }}</div>
-            <span class="follow-name">{{ f.following_username }}</span>
+            <div class="follow-avatar">
+              {{ f.following_nickname?.charAt(0)?.toUpperCase() || f.following_username?.charAt(0)?.toUpperCase() }}
+            </div>
+            <span class="follow-name">{{ displayName(f.following_nickname, f.following_username) }}</span>
           </div>
         </div>
       </div>
@@ -593,9 +607,7 @@ h2 {
   cursor: pointer;
   transition: background 0.15s;
 }
-.stat-item:hover {
-  background: #e6f7ee;
-}
+.stat-item:hover { background: #e6f7ee; }
 .stat-value {
   font-size: calc(var(--base-font-size, 16px) + 6px);
   font-weight: bold;
@@ -665,9 +677,7 @@ input[type="password"] {
   outline: none;
 }
 input[type="text"]:focus,
-input[type="password"]:focus {
-  border-color: #2eb872;
-}
+input[type="password"]:focus { border-color: #2eb872; }
 input[type="range"] {
   width: 100%;
   accent-color: #2eb872;
@@ -714,10 +724,7 @@ input[type="range"] {
   color: #38a169;
   font-size: calc(var(--base-font-size, 16px) - 2px);
 }
-hr {
-  border: none;
-  border-top: 1px solid #eee;
-}
+hr { border: none; border-top: 1px solid #eee; }
 .list-box {
   display: flex;
   flex-direction: column;
@@ -794,12 +801,8 @@ hr {
   font-size: calc(var(--base-font-size, 16px) - 2px);
   font-weight: 600;
 }
-.list-item.clickable {
-  cursor: pointer;
-}
-.list-item.clickable:hover {
-  background: #e6f7ee;
-}
+.list-item.clickable { cursor: pointer; }
+.list-item.clickable:hover { background: #e6f7ee; }
 .follow-item {
   display: flex;
   align-items: center;

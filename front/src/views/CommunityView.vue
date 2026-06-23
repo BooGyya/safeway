@@ -26,11 +26,23 @@ const noticeCategoryLabel = {
   event: '🎉 이벤트'
 }
 
+const maskUsername = (username) => {
+  if (!username) return ''
+  const visible = username.slice(0, 2)
+  const masked = '*'.repeat(Math.max(username.length - 2, 2))
+  return `${visible}${masked}`
+}
+
+const displayName = (nickname, username) => {
+  if (!nickname) return username
+  return `${nickname}(${maskUsername(username)})`
+}
+
 const fetchPosts = async () => {
   loading.value = true
   try {
     const { data } = await communityAPI.getPosts(sort.value)
-    posts.value = data.results  // data → data.results
+    posts.value = data.results
   } catch {
     console.error('게시글 로드 실패')
   } finally {
@@ -124,7 +136,7 @@ onMounted(() => {
           <h3 class="post-title">{{ post.title }}</h3>
           <p class="post-address">📍 {{ post.address }}</p>
           <div class="post-footer">
-            <span>👤 {{ post.username }}</span>
+            <span>👤 {{ displayName(post.nickname, post.username) }}</span>
             <span>❤️ {{ post.like_count || 0 }}</span>
             <span>💬 {{ post.comment_count || 0 }}</span>
           </div>
@@ -170,8 +182,6 @@ h2 {
   cursor: pointer;
   font-size: calc(var(--base-font-size, 16px) - 2px);
 }
-
-/* 공지사항 */
 .notice-section {
   display: flex;
   flex-direction: column;
@@ -192,12 +202,8 @@ h2 {
   background: #fffef5;
   transition: background 0.2s;
 }
-.notice-card:last-child {
-  border-bottom: none;
-}
-.notice-card:hover {
-  background: #fff8dc;
-}
+.notice-card:last-child { border-bottom: none; }
+.notice-card:hover { background: #fff8dc; }
 .notice-left {
   display: flex;
   align-items: center;
@@ -236,7 +242,6 @@ h2 {
   color: #aaa;
   flex-shrink: 0;
 }
-
 .sort-bar {
   display: flex;
   gap: 8px;
@@ -271,9 +276,7 @@ h2 {
   gap: 8px;
   transition: box-shadow 0.2s;
 }
-.post-card:hover {
-  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
-}
+.post-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.12); }
 .post-header {
   display: flex;
   justify-content: space-between;

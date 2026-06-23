@@ -16,6 +16,18 @@ const handleLogout = async () => {
 const closeMenu = () => {
   menuOpen.value = false
 }
+
+const maskUsername = (username) => {
+  if (!username) return ''
+  const visible = username.slice(0, 2)
+  const masked = '*'.repeat(Math.max(username.length - 2, 2))
+  return `${visible}${masked}`
+}
+
+const displayName = (nickname, username) => {
+  if (!nickname) return username
+  return `${nickname}(${maskUsername(username)})`
+}
 </script>
 
 <template>
@@ -35,7 +47,7 @@ const closeMenu = () => {
 
       <div class="auth-buttons desktop-nav">
         <template v-if="auth.isLoggedIn">
-          <span class="username">{{ auth.user?.username }}</span>
+          <span class="username">{{ displayName(auth.user?.nickname, auth.user?.username) }}</span>
           <RouterLink to="/profile" class="mypage-btn">마이페이지</RouterLink>
           <button @click="handleLogout">로그아웃</button>
         </template>
@@ -88,7 +100,6 @@ const closeMenu = () => {
   align-items: center;
   justify-content: space-between;
 }
-
 .logo {
   color: white;
   font-size: calc(var(--base-font-size, 16px) + 4px);

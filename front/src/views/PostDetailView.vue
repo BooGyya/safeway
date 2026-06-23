@@ -22,11 +22,22 @@ const categoryLabel = {
   other: '📌 기타'
 }
 
+const maskUsername = (username) => {
+  if (!username) return ''
+  const visible = username.slice(0, 2)
+  const masked = '*'.repeat(Math.max(username.length - 2, 2))
+  return `${visible}${masked}`
+}
+
+const displayName = (nickname, username) => {
+  if (!nickname) return username
+  return `${nickname}(${maskUsername(username)})`
+}
+
 const fetchPost = async () => {
   loading.value = true
   try {
     const { data } = await communityAPI.getPost(route.params.id)
-    console.log('post data:', data)  // 추가
     post.value = data
     isFollowing.value = data.is_following || false
     comments.value = data.comments || []
@@ -43,11 +54,7 @@ const handleFollow = async () => {
     alert('로그인이 필요합니다.')
     return
   }
-  console.log('user_id:', post.value?.user_id)  // 확인용
-  if (!post.value?.user_id) {
-    alert('user_id가 없습니다.')
-    return
-  }
+  if (!post.value?.user_id) return
   try {
     const { data } = await communityAPI.followUser(post.value.user_id)
     isFollowing.value = data.is_following
@@ -128,7 +135,7 @@ onMounted(fetchPost)
 
           <h2 class="post-title">{{ post.title }}</h2>
           <div class="post-meta-row">
-            <p class="post-meta">👤 {{ post.username }} · 📅 {{ formatDate(post.created_at) }}</p>
+            <p class="post-meta">👤 {{ displayName(post.nickname, post.username) }} · 📅 {{ formatDate(post.created_at) }}</p>
             <button
               v-if="auth.isLoggedIn && auth.user?.username !== post.username"
               :class="['follow-btn', { following: isFollowing }]"
@@ -163,7 +170,7 @@ onMounted(fetchPost)
           <div class="comment-list">
             <div v-for="comment in comments" :key="comment.id" class="comment-item">
               <div class="comment-header">
-                <span class="comment-author">👤 {{ comment.username }}</span>
+                <span class="comment-author">👤 {{ displayName(comment.nickname, comment.username) }}</span>
                 <span class="comment-date">{{ formatDate(comment.created_at) }}</span>
                 <button
                   v-if="auth.user?.username === comment.username"
@@ -311,9 +318,7 @@ onMounted(fetchPost)
   font-size: calc(var(--base-font-size, 16px) - 2px);
   outline: none;
 }
-.comment-form input:focus {
-  border-color: #2eb872;
-}
+.comment-form input:focus { border-color: #2eb872; }
 .comment-form button {
   padding: 10px 20px;
   background: #2eb872;
@@ -390,32 +395,18 @@ onMounted(fetchPost)
   cursor: pointer;
   transition: all 0.15s;
 }
-.follow-btn:hover {
-  background: #e6f7ee;
-}
+.follow-btn:hover { background: #e6f7ee; }
 .follow-btn.following {
   background: #2eb872;
   color: white;
 }
-.follow-btn.following:hover {
-  background: #259a60;
-}
+.follow-btn.following:hover { background: #259a60; }
 
 @media (max-width: 768px) {
-  .detail-page {
-    padding: 16px;
-  }
-  .post-box {
-    padding: 16px;
-  }
-  .comment-box {
-    padding: 16px;
-  }
-  .comment-form {
-    flex-direction: column;
-  }
-  .comment-form button {
-    width: 100%;
-  }
+  .detail-page { padding: 16px; }
+  .post-box { padding: 16px; }
+  .comment-box { padding: 16px; }
+  .comment-form { flex-direction: column; }
+  .comment-form button { width: 100%; }
 }
 </style>
