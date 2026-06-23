@@ -24,7 +24,6 @@ const categories = [
   { key: 'pharmacy', label: '약국', icon: '💊', color: '#38a169' },
   { key: 'welfare', label: '복지시설', icon: '🏢', color: '#805ad5' },
   { key: 'elevator', label: '엘리베이터', icon: '🛗', color: '#2eb872' },
-  { key: 'support_center', label: '지원센터', icon: '🤝', color: '#dd6b20' },
 ]
 const activeCategories = ref(new Set())
 let activeOverlay = null
