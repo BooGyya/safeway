@@ -74,21 +74,21 @@ const closeMenu = () => {
 <style scoped>
 .header {
   background-color: #2eb872;
-  padding: 0 24px;
   height: 60px;
   position: sticky;
   top: 0;
   z-index: 100;
+  padding: 0;
 }
 .header-inner {
   width: 100%;
-  max-width: 1200px;
   height: 60px;
-  margin: 0 auto;
+  padding: 0 24px;
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
+
 .logo {
   color: white;
   font-size: calc(var(--base-font-size, 16px) + 4px);
