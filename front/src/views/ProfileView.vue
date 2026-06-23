@@ -47,7 +47,10 @@ const form = ref({
   font_size: 'medium',
   voice_type: 'female',
   voice_volume: 70,
-  sos_number: ''
+  sos_number: '',
+  nickname: '',
+  name: '',
+  phone: '',
 })
 
 const passwordForm = ref({
@@ -88,7 +91,10 @@ const fetchProfile = async () => {
       font_size: data.font_size,
       voice_type: data.voice_type,
       voice_volume: data.voice_volume,
-      sos_number: data.sos_number || ''
+      sos_number: data.sos_number || '',
+      nickname: data.nickname || '',
+      name: data.name || '',
+      phone: data.phone || '',
     }
     applyFontSize(data.font_size)
   } catch {
@@ -361,6 +367,19 @@ const formatDate = (dateStr) => {
           <div class="form-group">
             <label>SOS 번호</label>
             <input v-model="form.sos_number" type="text" placeholder="01012345678" />
+          </div>
+
+          <div class="form-group">
+            <label>별명</label>
+            <input v-model="form.nickname" type="text" placeholder="별명을 입력하세요" />
+          </div>
+          <div class="form-group">
+            <label>이름</label>
+            <input v-model="form.name" type="text" placeholder="이름을 입력하세요" />
+          </div>
+          <div class="form-group">
+            <label>전화번호</label>
+            <input v-model="form.phone" type="text" placeholder="01012345678" />
           </div>
 
           <p v-if="successMsg" class="success-msg">✅ {{ successMsg }}</p>

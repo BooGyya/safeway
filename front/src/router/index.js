@@ -70,6 +70,12 @@ const routes = [
     name: 'NotFound',
     component: () => import('@/views/NotFoundView.vue')
   },
+  {
+  path: '/kakao/profile',
+  name: 'KakaoProfile',
+  component: () => import('@/views/KakaoProfileView.vue'),
+  meta: { requiresAuth: true }
+  },
 ]
 
 const router = createRouter({

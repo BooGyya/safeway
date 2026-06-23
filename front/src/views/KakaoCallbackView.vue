@@ -10,6 +10,7 @@ const auth = useAuthStore()
 onMounted(async () => {
   const access = route.query.access
   const refresh = route.query.refresh
+  const created = route.query.created === 'true'
 
   if (access && refresh) {
     localStorage.setItem('access', access)
@@ -18,7 +19,11 @@ onMounted(async () => {
 
     try {
       await auth.fetchProfile()
-      router.push('/')
+      if (created) {
+        router.push('/kakao/profile')  // 신규 유저 → 추가 정보 입력
+      } else {
+        router.push('/')
+      }
     } catch {
       alert('프로필 로드에 실패했습니다.')
       router.push('/login')
