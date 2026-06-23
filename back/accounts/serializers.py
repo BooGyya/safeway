@@ -13,6 +13,7 @@ class RegisterSerializer(serializers.ModelSerializer):
         write_only=True,
         required=True
     )
+    nickname = serializers.CharField(required=True)
     terms_agreed = serializers.BooleanField(required=True)
     privacy_agreed = serializers.BooleanField(required=True)
 
