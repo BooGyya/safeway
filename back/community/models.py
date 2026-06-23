@@ -27,8 +27,8 @@ class Post(models.Model):
     )
     
     # 위치 정보
-    latitude = models.DecimalField(max_digits=10, decimal_places=7)
-    longitude = models.DecimalField(max_digits=10, decimal_places=7)
+    latitude = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True)
+    longitude = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True)
     address = models.CharField(max_length=255, blank=True)
     
     # 신뢰도

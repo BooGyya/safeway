@@ -59,13 +59,48 @@ def post_list(request):
     # 게시글 생성
     serializer = PostSerializer(data=request.data)
     if serializer.is_valid():
+        # LLM 필터링
+        from chatbot.views import call_gms
+        import json
+
+        title = request.data.get('title', '')
+        content = request.data.get('content', '')
+
+        filter_messages = [{
+            'role': 'user',
+            'content': f"""다음 텍스트에 욕설, 혐오, 비방, 선정적 표현이 포함되어 있는지 확인해주세요.
+
+        텍스트: 제목: {title}\n내용: {content}
+
+        반드시 아래 JSON 형식으로만 응답하세요.
+        {{"is_inappropriate": true/false, "reason": "이유"}}"""
+        }]
+
+        filter_result = call_gms(filter_messages, "당신은 콘텐츠 필터링 전문가입니다. 반드시 JSON 형식으로만 응답하세요.")
+
+        try:
+            clean = filter_result.strip()
+            if '```' in clean:
+                clean = clean.split('```')[1]
+                if clean.startswith('json'):
+                    clean = clean[4:]
+            result = json.loads(clean.strip())
+
+            if result.get('is_inappropriate'):
+                return Response(
+                    {'error': f'부적절한 내용이 포함되어 있습니다: {result.get("reason")}'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        except Exception:
+            pass  # 필터링 실패 시 게시글 작성 허용
+
         post = serializer.save(user=request.user)
-        
+
         # 이미지 업로드 처리
         images = request.FILES.getlist('images')
         for image in images:
             PostImage.objects.create(post=post, image=image)
-        
+
         return Response(PostSerializer(post, context={'request': request}).data, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 

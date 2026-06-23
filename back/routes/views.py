@@ -20,7 +20,7 @@ def get_distance(lat1, lng1, lat2, lng2):
     return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
 
-def get_tmap_route(origin_lat, origin_lng, dest_lat, dest_lng, speed=1.0):
+def get_tmap_route(origin_lat, origin_lng, dest_lat, dest_lng, speed=1.0, user_type='normal'):
     """TMAP 보행자 경로 탐색"""
     API_KEY = os.getenv('TMAP_API_KEY')
     url = 'https://apis.openapi.sk.com/tmap/routes/pedestrian'
@@ -42,6 +42,7 @@ def get_tmap_route(origin_lat, origin_lng, dest_lat, dest_lng, speed=1.0):
         'startName': '출발지',
         'endName': '목적지',
         'speed': speed_kmh,
+        'optionRouteType': '10' if user_type in ['wheelchair', 'disabled'] else '0',
     }
 
     try:
@@ -191,6 +192,7 @@ def search_route(request):
 
     # TMAP 보행자 경로 탐색
     user_speed = request.user.walk_speed if request.user.is_authenticated else 1.0
+    user_type = request.user.user_type if request.user.is_authenticated else 'normal'
 
     waypoints = []
     distance = 0
@@ -246,7 +248,7 @@ def search_route(request):
                             'lng': vertexes[i],
                         })
     else:  # walk
-        tmap_data = get_tmap_route(origin_lat, origin_lng, dest_lat, dest_lng, speed=user_speed)
+        tmap_data = get_tmap_route(origin_lat, origin_lng, dest_lat, dest_lng, speed=user_speed, user_type=user_type)
         if tmap_data and tmap_data.get('features'):
             for feature in tmap_data['features']:
                 geometry = feature.get('geometry', {})
@@ -275,7 +277,6 @@ def search_route(request):
             duration = int(duration * 1.2)  # 20% 추가 소요
 
     # 안전도 점수 계산
-    user_type = request.user.user_type if request.user.is_authenticated else 'normal'
     safety_score = calculate_safety_score(waypoints, user_type)
 
     # 경로 저장

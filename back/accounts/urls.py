@@ -15,4 +15,6 @@ urlpatterns = [
     path('kakao/callback/', views.kakao_callback, name='kakao_callback'),
     path('mypage/', views.mypage, name='mypage'),
     path('users/<int:user_id>/', views.user_profile, name='user_profile'),
+    path('admin/users/', views.admin_user_list, name='admin_user_list'),
+    path('admin/users/<int:user_id>/', views.admin_user_status, name='admin_user_status'),
 ]
