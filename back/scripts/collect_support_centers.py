@@ -43,11 +43,23 @@ def fetch_page(page_no, num_of_rows=1000):
 
 
 def parse_item(item):
+    address = item.get('rdnmadr', '') or item.get('lnmadr', '')
+    
+    # 주소에서 시도 추출 (첫 번째 공백 기준)
+    sido = ''
+    sigungu = ''
+    if address:
+        parts = address.split(' ')
+        if len(parts) >= 1:
+            sido = parts[0]  # 예: "경기도", "서울특별시"
+        if len(parts) >= 2:
+            sigungu = parts[1]  # 예: "포천시", "강남구"
+
     return {
         'name': item.get('tfcwkerMvmnCnterNm', '') or item.get('institutionNm', ''),
-        'sido': item.get('insttNm', ''),
-        'sigungu': '',
-        'address': item.get('rdnmadr', '') or item.get('lnmadr', ''),
+        'sido': sido,
+        'sigungu': sigungu,
+        'address': address,
         'lat': float(item.get('latitude', 0) or 0),
         'lng': float(item.get('longitude', 0) or 0),
         'phone': item.get('phoneNumber', '') or item.get('rceptPhoneNumber', ''),

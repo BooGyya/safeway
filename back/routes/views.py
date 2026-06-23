@@ -328,12 +328,12 @@ def search_route(request):
         lngs = [wp['lng'] for wp in waypoints]
         min_lat, max_lat = min(lats), max(lats)
         min_lng, max_lng = min(lngs), max(lngs)
-        padding = 0.002
+        padding = 0.005
 
         lights = TrafficLight.objects.filter(
             lat__range=(min_lat - padding, max_lat + padding),
             lng__range=(min_lng - padding, max_lng + padding),
-            has_audio=True,
+            has_remndr=True,
             is_operating=True
         )[:20]
         nearby['traffic_lights'] = [
