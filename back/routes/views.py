@@ -334,7 +334,6 @@ def search_route(request):
             lat__range=(min_lat - padding, max_lat + padding),
             lng__range=(min_lng - padding, max_lng + padding),
             has_remndr=True,
-            is_operating=True
         )[:20]
         nearby['traffic_lights'] = [
             {

@@ -31,7 +31,6 @@ def nearby_traffic_lights(request):
     lights = TrafficLight.objects.filter(
         lat__range=(lat - radius, lat + radius),
         lng__range=(lng - radius, lng + radius),
-        is_operating=True
     )
 
     serializer = TrafficLightSerializer(lights, many=True)
@@ -58,7 +57,6 @@ def audio_traffic_lights(request):
         lat__range=(lat - radius, lat + radius),
         lng__range=(lng - radius, lng + radius),
         has_audio=True,
-        is_operating=True
     )
 
     serializer = TrafficLightSerializer(lights, many=True)
