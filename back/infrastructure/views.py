@@ -328,4 +328,28 @@ def nearby_places(request):
     
 
 
-    
+# 시설 검색 (시설명 검색)
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def search_facilities(request):
+    keyword = request.query_params.get('q', '')
+    facility_type = request.query_params.get('type', '')
+
+    if not keyword:
+        return Response(
+            {'error': '검색어를 입력해주세요.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    facilities = Facility.objects.filter(
+        name__icontains=keyword,
+        is_available=True
+    )
+
+    if facility_type:
+        facilities = facilities.filter(facility_type=facility_type)
+
+    facilities = facilities[:20]
+
+    serializer = FacilitySerializer(facilities, many=True)
+    return Response(serializer.data)

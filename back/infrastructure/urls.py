@@ -21,4 +21,8 @@ urlpatterns = [
     
     # 주변 병원/복지시설/약국 조회
     path('places/', views.nearby_places, name='nearby_places'),
+    
+    # 시설명으로 검색
+    path('facilities/search/', views.search_facilities, name='search_facilities'),
+
 ]
