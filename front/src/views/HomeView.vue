@@ -124,6 +124,18 @@ watch(transportType, () => {
   }
 })
 
+watch(walkSpeed, () => {
+  if (routeResult.value) {
+    searchRoute()
+  }
+})
+
+watch(selectedUserType, () => {
+  if (routeResult.value) {
+    searchRoute()
+  }
+})
+
 const searchAddress = async (query, type) => {
   if (!query) {
     if (type === 'origin') originSuggestions.value = []
@@ -699,7 +711,7 @@ const formatDistance = (meters) => {
               v-for="opt in userTypeOptions"
               :key="opt.value"
               :class="['type-btn', { active: selectedUserType === opt.value }]"
-              @click="selectedUserType = opt.value"
+              @click="selectedUserType = opt.value; if (routeResult) searchRoute()"
             >
               {{ opt.label }}
             </button>
@@ -708,7 +720,15 @@ const formatDistance = (meters) => {
 
         <div class="speed-bar">
           <label class="bar-label">보행 속도: {{ walkSpeed }}m/s</label>
-          <input v-model.number="walkSpeed" type="range" min="0.3" max="2.0" step="0.1" class="speed-slider" />
+          <input 
+            v-model.number="walkSpeed" 
+            type="range" 
+            min="0.3" 
+            max="2.0" 
+            step="0.1" 
+            class="speed-slider"
+            @change="() => { if (routeResult) searchRoute() }"
+          />
         </div>
 
         <div class="search-box">
