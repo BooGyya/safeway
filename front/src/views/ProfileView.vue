@@ -4,6 +4,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useMapStore } from '@/stores/map'
 import { authAPI } from '@/api/auth'
 import { routeAPI } from '@/api/routes'
+import { communityAPI } from '@/api/community'
 import { useRouter } from 'vue-router'
 
 const auth = useAuthStore()
@@ -17,6 +18,9 @@ const history = ref([])
 const activeTab = ref('mypage')
 const loading = ref(false)
 const successMsg = ref('')
+const myPosts = ref([])
+const followers = ref([])
+const followings = ref([])
 
 const userTypeOptions = [
   { value: 'normal', label: '일반' },
@@ -108,6 +112,30 @@ const fetchHistory = async () => {
   } catch {
     console.error('히스토리 로드 실패')
   }
+}
+
+const fetchMyPosts = async () => {
+  try {
+    const { data } = await communityAPI.getPosts('latest', 1, '', '')
+    myPosts.value = (data.results || data).filter(p => p.username === auth.user?.username)
+  } catch { myPosts.value = [] }
+}
+
+const fetchFollowList = async () => {
+  try {
+    const { data } = await communityAPI.getFollowList()
+    followers.value = data.followers || []
+    followings.value = data.following || []
+  } catch {
+    followers.value = []
+    followings.value = []
+  }
+}
+
+const goToTab = async (tab) => {
+  activeTab.value = tab
+  if (tab === 'myposts') await fetchMyPosts()
+  if (tab === 'followers' || tab === 'followings') await fetchFollowList()
 }
 
 const handleUpdateProfile = async () => {
@@ -218,23 +246,23 @@ const formatDate = (dateStr) => {
         </div>
 
         <div class="stats-grid">
-          <div class="stat-item">
+          <div class="stat-item" @click="activeTab = 'history'">
             <span class="stat-value">{{ mypage.stats?.route_count || 0 }}</span>
             <span class="stat-label">경로 탐색</span>
           </div>
-          <div class="stat-item">
+          <div class="stat-item" @click="activeTab = 'favorites'">
             <span class="stat-value">{{ mypage.stats?.favorite_count || 0 }}</span>
             <span class="stat-label">즐겨찾기</span>
           </div>
-          <div class="stat-item">
+          <div class="stat-item" @click="goToTab('myposts')">
             <span class="stat-value">{{ mypage.stats?.post_count || 0 }}</span>
             <span class="stat-label">게시글</span>
           </div>
-          <div class="stat-item">
+          <div class="stat-item" @click="goToTab('followers')">
             <span class="stat-value">{{ mypage.stats?.follower_count || 0 }}</span>
             <span class="stat-label">팔로워</span>
           </div>
-          <div class="stat-item">
+          <div class="stat-item" @click="goToTab('followings')">
             <span class="stat-value">{{ mypage.stats?.following_count || 0 }}</span>
             <span class="stat-label">팔로잉</span>
           </div>
@@ -324,23 +352,6 @@ const formatDate = (dateStr) => {
           </div>
 
           <div class="form-group">
-            <label>안내 음성</label>
-            <div class="option-group">
-              <button
-                v-for="opt in voiceTypeOptions"
-                :key="opt.value"
-                :class="['opt-btn', { active: form.voice_type === opt.value }]"
-                @click="form.voice_type = opt.value"
-              >{{ opt.label }}</button>
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label>음량: {{ form.voice_volume }}</label>
-            <input v-model="form.voice_volume" type="range" min="0" max="100" step="5" />
-          </div>
-
-          <div class="form-group">
             <label>SOS 번호</label>
             <input v-model="form.sos_number" type="text" placeholder="01012345678" />
           </div>
@@ -380,6 +391,58 @@ const formatDate = (dateStr) => {
               <span class="list-title">{{ item.origin_name }} → {{ item.dest_name }}</span>
               <span class="list-sub">{{ formatDistance(item.distance) }} · {{ formatDuration(item.duration) }}</span>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 내 게시글 -->
+      <div v-if="activeTab === 'myposts'" class="tab-content">
+        <div class="tab-content-header">
+          <h3>내 게시글</h3>
+          <button class="back-to-home" @click="activeTab = 'mypage'">← 홈으로</button>
+        </div>
+        <div v-if="myPosts.length === 0" class="empty">작성한 게시글이 없어요.</div>
+        <div v-else class="list-box">
+          <div
+            v-for="post in myPosts"
+            :key="post.id"
+            class="list-item clickable"
+            @click="router.push(`/community/${post.id}`)"
+          >
+            <div class="list-info">
+              <span class="list-title">{{ post.title }}</span>
+              <span class="list-sub">❤️ {{ post.like_count || 0 }} · 💬 {{ post.comment_count || 0 }} · {{ formatDate(post.created_at) }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 팔로워 -->
+      <div v-if="activeTab === 'followers'" class="tab-content">
+        <div class="tab-content-header">
+          <h3>팔로워</h3>
+          <button class="back-to-home" @click="activeTab = 'mypage'">← 홈으로</button>
+        </div>
+        <div v-if="followers.length === 0" class="empty">팔로워가 없어요.</div>
+        <div v-else class="list-box">
+          <div v-for="f in followers" :key="f.id" class="list-item follow-item">
+            <div class="follow-avatar">{{ f.follower_username?.charAt(0)?.toUpperCase() }}</div>
+            <span class="follow-name">{{ f.follower_username }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 팔로잉 -->
+      <div v-if="activeTab === 'followings'" class="tab-content">
+        <div class="tab-content-header">
+          <h3>팔로잉</h3>
+          <button class="back-to-home" @click="activeTab = 'mypage'">← 홈으로</button>
+        </div>
+        <div v-if="followings.length === 0" class="empty">팔로잉하는 사용자가 없어요.</div>
+        <div v-else class="list-box">
+          <div v-for="f in followings" :key="f.id" class="list-item follow-item">
+            <div class="follow-avatar">{{ f.following_username?.charAt(0)?.toUpperCase() }}</div>
+            <span class="follow-name">{{ f.following_username }}</span>
           </div>
         </div>
       </div>
@@ -501,6 +564,11 @@ h2 {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.stat-item:hover {
+  background: #e6f7ee;
 }
 .stat-value {
   font-size: calc(var(--base-font-size, 16px) + 6px);
@@ -681,6 +749,55 @@ hr {
   color: #999;
   margin: 0;
 }
+.tab-content-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.tab-content-header h3 {
+  font-size: calc(var(--base-font-size, 16px) + 1px);
+  font-weight: 700;
+  color: #333;
+  margin: 0;
+}
+.back-to-home {
+  background: none;
+  border: none;
+  color: #2eb872;
+  cursor: pointer;
+  font-size: calc(var(--base-font-size, 16px) - 2px);
+  font-weight: 600;
+}
+.list-item.clickable {
+  cursor: pointer;
+}
+.list-item.clickable:hover {
+  background: #e6f7ee;
+}
+.follow-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.follow-avatar {
+  width: 40px;
+  height: 40px;
+  background: #2eb872;
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(var(--base-font-size, 16px) + 2px);
+  font-weight: bold;
+  flex-shrink: 0;
+}
+.follow-name {
+  font-size: var(--base-font-size, 16px);
+  font-weight: 600;
+  color: #333;
+}
+
 @media (max-width: 768px) {
   .profile-page { padding: 16px; }
   .tab-content { padding: 16px; }

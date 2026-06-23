@@ -53,6 +53,8 @@ const destResult = ref(null)
 const originSuggestions = ref([])
 const destSuggestions = ref([])
 const routeResult = ref(null)
+const nearbyOriginFacilities = ref([])
+const nearbyDestFacilities = ref([])
 const loading = ref(false)
 const errorMsg = ref('')
 const transportType = ref('walk')
@@ -63,13 +65,6 @@ const transportOptions = [
   { value: 'taxi', label: '🚕 택시' },
 ]
 
-const userTypeOptions = [
-  { value: 'normal', label: '일반' },
-  { value: 'elderly', label: '노인' },
-  { value: 'disabled', label: '장애인' },
-  { value: 'wheelchair', label: '휠체어' },
-  { value: 'pregnant', label: '임산부' },
-]
 const selectedUserType = ref('normal')
 const walkSpeed = ref(1.0)
 const showRouteDetail = ref(false)
@@ -124,17 +119,6 @@ watch(transportType, () => {
   }
 })
 
-watch(walkSpeed, () => {
-  if (routeResult.value) {
-    searchRoute()
-  }
-})
-
-watch(selectedUserType, () => {
-  if (routeResult.value) {
-    searchRoute()
-  }
-})
 
 const searchAddress = async (query, type) => {
   if (!query) {
@@ -193,6 +177,7 @@ const searchRoute = async () => {
     })
     routeResult.value = data
     drawRoute(data)
+    fetchNearbyFacilities(data.route)
   } catch {
     errorMsg.value = '경로 탐색에 실패했습니다.'
   } finally {
@@ -245,6 +230,27 @@ const drawRoute = (data) => {
   if (data.nearby) {
     drawNearbyMarkers(data.nearby)
   }
+}
+
+const fetchNearbyFacilities = async (route) => {
+  nearbyOriginFacilities.value = []
+  nearbyDestFacilities.value = []
+  try {
+    const [originRes, destRes] = await Promise.allSettled([
+      infraAPI.getPlaces(route.origin_lat, route.origin_lng, 'hospital'),
+      infraAPI.getPlaces(route.dest_lat, route.dest_lng, 'hospital'),
+    ])
+    const [originPharm, destPharm] = await Promise.allSettled([
+      infraAPI.getPlaces(route.origin_lat, route.origin_lng, 'pharmacy'),
+      infraAPI.getPlaces(route.dest_lat, route.dest_lng, 'pharmacy'),
+    ])
+    const oHosp = originRes.status === 'fulfilled' ? (originRes.value.data.results || []).slice(0, 3) : []
+    const oPharm = originPharm.status === 'fulfilled' ? (originPharm.value.data.results || []).slice(0, 3) : []
+    const dHosp = destRes.status === 'fulfilled' ? (destRes.value.data.results || []).slice(0, 3) : []
+    const dPharm = destPharm.status === 'fulfilled' ? (destPharm.value.data.results || []).slice(0, 3) : []
+    nearbyOriginFacilities.value = [...oHosp.map(p => ({...p, type: '병원'})), ...oPharm.map(p => ({...p, type: '약국'}))]
+    nearbyDestFacilities.value = [...dHosp.map(p => ({...p, type: '병원'})), ...dPharm.map(p => ({...p, type: '약국'}))]
+  } catch { /* 무시 */ }
 }
 
 const drawNearbyMarkers = (nearby) => {
@@ -704,33 +710,6 @@ const formatDistance = (meters) => {
           </button>
         </div>
 
-        <div class="user-type-bar">
-          <label class="bar-label">교통약자 유형</label>
-          <div class="user-type-options">
-            <button
-              v-for="opt in userTypeOptions"
-              :key="opt.value"
-              :class="['type-btn', { active: selectedUserType === opt.value }]"
-              @click="selectedUserType = opt.value; if (routeResult) searchRoute()"
-            >
-              {{ opt.label }}
-            </button>
-          </div>
-        </div>
-
-        <div class="speed-bar">
-          <label class="bar-label">보행 속도: {{ walkSpeed }}m/s</label>
-          <input 
-            v-model.number="walkSpeed" 
-            type="range" 
-            min="0.3" 
-            max="2.0" 
-            step="0.1" 
-            class="speed-slider"
-            @change="() => { if (routeResult) searchRoute() }"
-          />
-        </div>
-
         <div class="search-box">
           <input
             v-model="originQuery"
@@ -832,6 +811,21 @@ const formatDistance = (meters) => {
               <div v-for="sc in routeResult.nearby.support_centers" :key="sc.id" class="detail-item">
                 <span class="detail-item-name">{{ sc.name }}</span>
                 <span class="detail-item-sub">{{ sc.phone }}</span>
+              </div>
+            </div>
+
+            <div v-if="nearbyOriginFacilities.length" class="detail-group">
+              <h4>📍 출발지 근처 시설</h4>
+              <div v-for="(f, i) in nearbyOriginFacilities" :key="'o'+i" class="detail-item">
+                <span class="detail-item-name">{{ f.name }}</span>
+                <span class="detail-item-type">{{ f.type }}</span>
+              </div>
+            </div>
+            <div v-if="nearbyDestFacilities.length" class="detail-group">
+              <h4>🏁 도착지 근처 시설</h4>
+              <div v-for="(f, i) in nearbyDestFacilities" :key="'d'+i" class="detail-item">
+                <span class="detail-item-name">{{ f.name }}</span>
+                <span class="detail-item-type">{{ f.type }}</span>
               </div>
             </div>
           </div>

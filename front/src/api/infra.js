@@ -13,8 +13,8 @@ export const infraAPI = {
   getFacilities: (lat, lng, type = null, radius = 0.01) =>
     api.get('/api/infrastructure/facilities/', { params: { lat, lng, radius, ...(type && { type }) } }),
 
-  getElevators: (lat, lng) =>
-    api.get('/api/infrastructure/elevators/', { params: { lat, lng } }),
+  getElevators: (lat, lng, radius = 2000) =>
+    api.get('/api/infrastructure/elevators/', { params: { lat, lng, radius } }),
 
   getSupportCenters: (lat, lng) =>
     api.get('/api/infrastructure/support-centers/', { params: { lat, lng } }),
