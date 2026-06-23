@@ -13,18 +13,30 @@ class RegisterSerializer(serializers.ModelSerializer):
         write_only=True,
         required=True
     )
+    terms_agreed = serializers.BooleanField(required=True)
+    privacy_agreed = serializers.BooleanField(required=True)
 
     class Meta:
         model = User
         fields = [
             'username', 'email', 'password', 'password2',
+            'nickname', 'name', 'phone',
             'user_type', 'walk_speed',
+            'terms_agreed', 'privacy_agreed',
         ]
 
     def validate(self, attrs):
         if attrs['password'] != attrs['password2']:
             raise serializers.ValidationError(
                 {'password': '비밀번호가 일치하지 않습니다.'}
+            )
+        if not attrs.get('terms_agreed'):
+            raise serializers.ValidationError(
+                {'terms_agreed': '이용약관에 동의해주세요.'}
+            )
+        if not attrs.get('privacy_agreed'):
+            raise serializers.ValidationError(
+                {'privacy_agreed': '개인정보처리방침에 동의해주세요.'}
             )
         return attrs
 
@@ -39,6 +51,7 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'id', 'username', 'email',
+            'nickname', 'name', 'phone',
             'user_type', 'walk_speed',
             'profile_image', 'font_size',
             'voice_type', 'voice_volume',
