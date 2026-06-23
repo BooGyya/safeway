@@ -21,7 +21,10 @@ const closeMenu = () => {
 <template>
   <header class="header">
     <div class="header-inner">
-      <RouterLink to="/" class="logo" @click="closeMenu">SafeWay</RouterLink>
+      <RouterLink to="/" class="logo" @click="closeMenu">
+        <img src="@/assets/logo.png" alt="SafeWay 로고" class="logo-img" />
+        SafeWay
+      </RouterLink>
 
       <!-- 데스크탑 네비 -->
       <nav class="nav desktop-nav">
@@ -89,8 +92,20 @@ const closeMenu = () => {
 .logo {
   color: white;
   font-size: calc(var(--base-font-size, 16px) + 4px);
-  font-weight: bold;
+  font-weight: 700;
   text-decoration: none;
+  font-family: 'Poppins', sans-serif;
+  letter-spacing: -0.5px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.logo-img {
+  height: 32px;
+  width: auto;
+  background: white;
+  border-radius: 50%;
+  padding: 2px;
 }
 .desktop-nav {
   display: flex;
