@@ -277,56 +277,50 @@ def nearby_places(request):
 
     lat, lng = float(lat), float(lng)
 
-    # 복지시설은 DB에서 조회
-    if place_type == 'welfare':
-        radius_degree = radius / 111000  # 미터 → 도 변환 (약 111km = 1도)
-        centers = SupportCenter.objects.filter(
-            lat__range=(lat - radius_degree, lat + radius_degree),
-            lng__range=(lng - radius_degree, lng + radius_degree),
-            is_operating=True
-        )[:15]
-        results = [
-            {
-                'name': c.name,
-                'address': c.address,
-                'lat': c.lat,
-                'lng': c.lng,
-                'phone': c.phone,
-                'distance': '',
-                'place_url': '',
-            }
-            for c in centers
-        ]
-        return Response({
-            'type': place_type,
-            'count': len(results),
-            'results': results,
-        })
-
-    # 병원/약국은 카카오 API로 조회
-    category_map = {
-        'hospital': 'HP8',
-        'pharmacy': 'PM9',
-        'public': 'PO3',
-    }
-
-    category_code = category_map.get(place_type, 'HP8')
-
     API_KEY = os.getenv('KAKAO_REST_API_KEY')
-    url = 'https://dapi.kakao.com/v2/local/search/category.json'
     headers = {'Authorization': f'KakaoAK {API_KEY}'}
-    params = {
-        'category_group_code': category_code,
-        'x': lng,
-        'y': lat,
-        'radius': radius,
-        'sort': 'distance',
-        'size': 15,
-    }
+
+    # 복지시설은 키워드 검색으로
+    if place_type == 'welfare':
+        url = 'https://dapi.kakao.com/v2/local/search/keyword.json'
+        params = {
+            'query': '복지관',
+            'x': lng,
+            'y': lat,
+            'radius': radius,
+            'sort': 'distance',
+            'size': 15,
+        }
+    else:
+        category_map = {
+            'hospital': 'HP8',
+            'pharmacy': 'PM9',
+            'public': 'PO3',
+        }
+        category_code = category_map.get(place_type, 'HP8')
+        url = 'https://dapi.kakao.com/v2/local/search/category.json'
+        params = {
+            'category_group_code': category_code,
+            'x': lng,
+            'y': lat,
+            'radius': radius,
+            'sort': 'distance',
+            'size': 15,
+        }
 
     try:
         response = requests.get(url, headers=headers, params=params, timeout=5)
         data = response.json()
+
+        WELFARE_KEYWORDS = ['복지관', '복지센터', '복지재단', '장애인', '노인복지', '사회복지', '데이케어', '주간보호']
+
+        docs = data.get('documents', [])
+        if place_type == 'welfare':
+            docs = [
+                doc for doc in docs
+                if any(kw in doc['place_name'] for kw in WELFARE_KEYWORDS)
+            ]
+
         results = [
             {
                 'name': doc['place_name'],
@@ -337,7 +331,7 @@ def nearby_places(request):
                 'distance': doc.get('distance', ''),
                 'place_url': doc.get('place_url', ''),
             }
-            for doc in data.get('documents', [])
+            for doc in docs
         ]
         return Response({
             'type': place_type,
