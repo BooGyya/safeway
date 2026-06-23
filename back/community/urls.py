@@ -26,4 +26,10 @@ urlpatterns = [
     path('admin/posts/<int:post_id>/', views.admin_post_delete, name='admin_post_delete'),
     path('admin/posts/<int:post_id>/reliability/', views.admin_post_reliability, name='admin_post_reliability'),
     path('admin/ranking/', views.admin_reporter_ranking, name='admin_reporter_ranking'),
+
+    # 공지사항
+    path('notices/', views.notice_list, name='notice_list'),
+    path('notices/create/', views.notice_create, name='notice_create'),
+    path('notices/<int:notice_id>/', views.notice_detail, name='notice_detail'),
+    path('notices/<int:notice_id>/update/', views.notice_update, name='notice_update'),
 ]
