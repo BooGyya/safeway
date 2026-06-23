@@ -302,3 +302,101 @@ def admin_reporter_ranking(request):
         for user in ranking
     ]
     return Response(result)
+
+
+# ============================================================
+# 공지사항
+# ============================================================
+from .models import Notice
+
+# 공지사항 목록 조회
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def notice_list(request):
+    notices = Notice.objects.all()
+    return Response([
+        {
+            'id': n.id,
+            'title': n.title,
+            'category': n.category,
+            'is_pinned': n.is_pinned,
+            'view_count': n.view_count,
+            'created_at': n.created_at,
+        }
+        for n in notices
+    ])
+
+
+# 공지사항 상세 조회
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def notice_detail(request, notice_id):
+    notice = get_object_or_404(Notice, id=notice_id)
+    notice.view_count += 1
+    notice.save()
+    return Response({
+        'id': notice.id,
+        'title': notice.title,
+        'content': notice.content,
+        'category': notice.category,
+        'is_pinned': notice.is_pinned,
+        'view_count': notice.view_count,
+        'created_at': notice.created_at,
+        'updated_at': notice.updated_at,
+    })
+
+
+# 관리자 - 공지사항 작성
+@api_view(['POST'])
+@permission_classes([IsAdminUser])
+def notice_create(request):
+    title = request.data.get('title')
+    content = request.data.get('content')
+    category = request.data.get('category', 'notice')
+    is_pinned = request.data.get('is_pinned', False)
+
+    if not title or not content:
+        return Response(
+            {'error': '제목과 내용을 입력해주세요.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    notice = Notice.objects.create(
+        title=title,
+        content=content,
+        category=category,
+        is_pinned=is_pinned,
+    )
+    return Response({
+        'id': notice.id,
+        'title': notice.title,
+        'content': notice.content,
+        'category': notice.category,
+        'is_pinned': notice.is_pinned,
+        'created_at': notice.created_at,
+    }, status=status.HTTP_201_CREATED)
+
+
+# 관리자 - 공지사항 수정/삭제
+@api_view(['PUT', 'PATCH', 'DELETE'])
+@permission_classes([IsAdminUser])
+def notice_update(request, notice_id):
+    notice = get_object_or_404(Notice, id=notice_id)
+
+    if request.method in ['PUT', 'PATCH']:
+        notice.title = request.data.get('title', notice.title)
+        notice.content = request.data.get('content', notice.content)
+        notice.category = request.data.get('category', notice.category)
+        notice.is_pinned = request.data.get('is_pinned', notice.is_pinned)
+        notice.save()
+        return Response({
+            'id': notice.id,
+            'title': notice.title,
+            'content': notice.content,
+            'category': notice.category,
+            'is_pinned': notice.is_pinned,
+            'updated_at': notice.updated_at,
+        })
+
+    notice.delete()
+    return Response({'message': '공지사항이 삭제되었습니다.'})

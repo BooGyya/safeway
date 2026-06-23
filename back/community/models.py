@@ -118,3 +118,29 @@ class PostImage(models.Model):
 
     def __str__(self):
         return f'{self.post.title} - 이미지'
+    
+class Notice(models.Model):
+    # 공지사항 카테고리
+    CATEGORY_CHOICES = [
+        ('notice', '공지'),
+        ('update', '업데이트'),
+        ('event', '이벤트'),
+    ]
+
+    title = models.CharField(max_length=100)
+    content = models.TextField()
+    category = models.CharField(
+        max_length=20,
+        choices=CATEGORY_CHOICES,
+        default='notice'
+    )
+    is_pinned = models.BooleanField(default=False)  # 상단 고정
+    view_count = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-is_pinned', '-created_at']
+
+    def __str__(self):
+        return self.title
