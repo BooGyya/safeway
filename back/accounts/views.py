@@ -12,6 +12,8 @@ from solapi.model import RequestMessage
 import requests as req
 from django.shortcuts import redirect
 from django.http import HttpResponseRedirect
+from django.shortcuts import get_object_or_404
+from config.permissions import IsAdminUser
 
 # 회원가입
 @api_view(['POST'])
@@ -330,4 +332,46 @@ def user_profile(request, user_id):
             }
             for p in Post.objects.filter(user=target_user).order_by('-created_at')[:5]
         ]
+    })
+
+# 관리자 - 사용자 목록 조회
+@api_view(['GET'])
+@permission_classes([IsAdminUser])
+def admin_user_list(request):
+    from config.permissions import IsAdminUser
+    users = User.objects.all().order_by('-date_joined')
+    return Response([
+        {
+            'id': u.id,
+            'username': u.username,
+            'email': u.email,
+            'user_type': u.user_type,
+            'is_active': u.is_active,
+            'date_joined': u.date_joined,
+        }
+        for u in users
+    ])
+
+
+# 관리자 - 사용자 상태 변경 (활성/비활성)
+@api_view(['PATCH'])
+@permission_classes([IsAdminUser])
+def admin_user_status(request, user_id):
+    target_user = get_object_or_404(User, id=user_id)
+    is_active = request.data.get('is_active')
+
+    if is_active is None:
+        return Response(
+            {'error': 'is_active 값을 입력해주세요.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    target_user.is_active = is_active
+    target_user.save()
+
+    return Response({
+        'id': target_user.id,
+        'username': target_user.username,
+        'is_active': target_user.is_active,
+        'message': f'사용자 상태가 {"활성화" if is_active else "비활성화"}되었습니다.'
     })
