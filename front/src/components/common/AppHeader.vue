@@ -48,6 +48,7 @@ const displayName = (nickname, username) => {
       <div class="auth-buttons desktop-nav">
         <template v-if="auth.isLoggedIn">
           <span class="username">{{ displayName(auth.user?.nickname, auth.user?.username) }}</span>
+          <RouterLink to="/admin" v-if="auth.isAdmin" class="mypage-btn">관리자</RouterLink>
           <RouterLink to="/profile" class="mypage-btn">마이페이지</RouterLink>
           <button @click="handleLogout">로그아웃</button>
         </template>
@@ -72,6 +73,7 @@ const displayName = (nickname, username) => {
       <RouterLink to="/chatbot" v-if="auth.isLoggedIn" @click="closeMenu">🤖 AI 챗봇</RouterLink>
       <hr />
       <template v-if="auth.isLoggedIn">
+        <RouterLink to="/admin" v-if="auth.isAdmin" @click="closeMenu">🛠 관리자</RouterLink>
         <RouterLink to="/profile" @click="closeMenu">👤 마이페이지</RouterLink>
         <button @click="handleLogout">로그아웃</button>
       </template>

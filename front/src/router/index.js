@@ -61,6 +61,12 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/admin',
+    name: 'Admin',
+    component: () => import('@/views/AdminView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/kakao/callback',
     name: 'KakaoCallback',
     component: () => import('@/views/KakaoCallbackView.vue')

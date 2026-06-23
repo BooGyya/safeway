@@ -135,7 +135,7 @@ onMounted(fetchPost)
 
           <h2 class="post-title">{{ post.title }}</h2>
           <div class="post-meta-row">
-            <p class="post-meta">👤 {{ displayName(post.nickname, post.username) }} · 📅 {{ formatDate(post.created_at) }}</p>
+            <p class="post-meta">👤 {{ displayName(post.nickname, post.username) }} · 📅 {{ formatDate(post.updated_at) }}</p>
             <button
               v-if="auth.isLoggedIn && auth.user?.username !== post.username"
               :class="['follow-btn', { following: isFollowing }]"

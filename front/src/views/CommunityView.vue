@@ -145,7 +145,7 @@ onMounted(() => {
           >
           <div class="post-header">
             <span class="category-badge">{{ categoryLabel[post.category] || post.category }}</span>
-            <span class="post-date">{{ formatDate(post.created_at) }}</span>
+            <span class="post-date">{{ formatDate(post.updated_at) }}</span>
           </div>
           <h3 class="post-title">{{ post.title }}</h3>
           <p class="post-address">📍 {{ post.address }}</p>
