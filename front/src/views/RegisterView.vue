@@ -44,21 +44,9 @@ const handleRegister = async () => {
       <p class="subtitle">회원가입</p>
 
       <div class="form">
-        <input
-          v-model="form.username"
-          type="text"
-          placeholder="아이디"
-        />
-        <input
-          v-model="form.email"
-          type="email"
-          placeholder="이메일"
-        />
-        <input
-          v-model="form.password"
-          type="password"
-          placeholder="비밀번호"
-        />
+        <input v-model="form.username" type="text" placeholder="아이디" />
+        <input v-model="form.email" type="email" placeholder="이메일" />
+        <input v-model="form.password" type="password" placeholder="비밀번호" />
         <input
           v-model="form.password2"
           type="password"
@@ -99,13 +87,13 @@ const handleRegister = async () => {
   text-align: center;
 }
 h1 {
-  font-size: 28px;
+  font-size: calc(var(--base-font-size, 16px) + 12px);
   color: #2c7be5;
   margin-bottom: 8px;
 }
 .subtitle {
   color: #888;
-  font-size: 14px;
+  font-size: calc(var(--base-font-size, 16px) - 2px);
   margin-bottom: 32px;
 }
 .form {
@@ -117,7 +105,7 @@ input {
   padding: 12px 16px;
   border: 1px solid #ddd;
   border-radius: 8px;
-  font-size: 15px;
+  font-size: var(--base-font-size, 16px);
   outline: none;
 }
 input:focus {
@@ -129,7 +117,7 @@ button {
   color: white;
   border: none;
   border-radius: 8px;
-  font-size: 16px;
+  font-size: var(--base-font-size, 16px);
   cursor: pointer;
   margin-top: 4px;
 }
@@ -138,10 +126,10 @@ button:disabled {
 }
 .error {
   color: red;
-  font-size: 13px;
+  font-size: calc(var(--base-font-size, 16px) - 3px);
 }
 .login-link {
-  font-size: 13px;
+  font-size: calc(var(--base-font-size, 16px) - 3px);
   color: #666;
 }
 .login-link a {
@@ -157,5 +145,4 @@ button:disabled {
     border-radius: 12px;
   }
 }
-
 </style>

@@ -25,13 +25,11 @@ const sendMessage = async () => {
   const userMessage = input.value.trim()
   input.value = ''
 
-  // 사용자 메시지 추가
   messages.value.push({ role: 'user', content: userMessage })
   await scrollToBottom()
 
   loading.value = true
   try {
-    // 히스토리 구성 (마지막 10개)
     const history = messages.value.slice(-10).map(m => ({
       role: m.role,
       content: m.content
@@ -60,7 +58,6 @@ const sendMessage = async () => {
         <p>교통약자 이동 관련 궁금한 점을 물어보세요!</p>
       </div>
 
-      <!-- 채팅창 -->
       <div ref="chatBox" class="chat-box">
         <div
           v-for="(msg, idx) in messages"
@@ -73,7 +70,6 @@ const sendMessage = async () => {
           </div>
         </div>
 
-        <!-- 로딩 -->
         <div v-if="loading" class="message assistant">
           <div class="bubble loading-bubble">
             <span class="bot-icon">🤖</span>
@@ -82,7 +78,6 @@ const sendMessage = async () => {
         </div>
       </div>
 
-      <!-- 추천 질문 -->
       <div class="suggestions">
         <button
           v-for="q in [
@@ -99,7 +94,6 @@ const sendMessage = async () => {
         </button>
       </div>
 
-      <!-- 입력창 -->
       <div class="input-box">
         <input
           v-model="input"
@@ -135,12 +129,12 @@ const sendMessage = async () => {
   text-align: center;
 }
 .chatbot-header h2 {
-  font-size: 22px;
+  font-size: calc(var(--base-font-size, 16px) + 6px);
   font-weight: bold;
   color: #333;
 }
 .chatbot-header p {
-  font-size: 14px;
+  font-size: calc(var(--base-font-size, 16px) - 2px);
   color: #888;
   margin-top: 4px;
 }
@@ -183,11 +177,11 @@ const sendMessage = async () => {
   border-bottom-left-radius: 4px;
 }
 .bot-icon {
-  font-size: 18px;
+  font-size: calc(var(--base-font-size, 16px) + 2px);
   flex-shrink: 0;
 }
 .bubble p {
-  font-size: 14px;
+  font-size: calc(var(--base-font-size, 16px) - 2px);
   line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-word;
@@ -195,12 +189,8 @@ const sendMessage = async () => {
 .loading-dots span {
   animation: blink 1.2s infinite;
 }
-.loading-dots span:nth-child(2) {
-  animation-delay: 0.2s;
-}
-.loading-dots span:nth-child(3) {
-  animation-delay: 0.4s;
-}
+.loading-dots span:nth-child(2) { animation-delay: 0.2s; }
+.loading-dots span:nth-child(3) { animation-delay: 0.4s; }
 @keyframes blink {
   0%, 100% { opacity: 0; }
   50% { opacity: 1; }
@@ -217,7 +207,7 @@ const sendMessage = async () => {
   color: #2c7be5;
   border-radius: 20px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: calc(var(--base-font-size, 16px) - 3px);
 }
 .suggest-btn:hover {
   background: #f0f4ff;
@@ -231,7 +221,7 @@ const sendMessage = async () => {
   padding: 14px 16px;
   border: 1px solid #ddd;
   border-radius: 12px;
-  font-size: 15px;
+  font-size: var(--base-font-size, 16px);
   outline: none;
 }
 .input-box input:focus {
@@ -244,7 +234,7 @@ const sendMessage = async () => {
   border: none;
   border-radius: 12px;
   cursor: pointer;
-  font-size: 15px;
+  font-size: var(--base-font-size, 16px);
   font-weight: bold;
 }
 .send-btn:disabled {
@@ -252,25 +242,10 @@ const sendMessage = async () => {
 }
 
 @media (max-width: 768px) {
-  .chatbot-page {
-    padding: 16px;
-  }
-  .chat-box {
-    height: 400px;
-    padding: 16px;
-  }
-  .bubble {
-    max-width: 90%;
-  }
-  .suggestions {
-    gap: 6px;
-  }
-  .suggest-btn {
-    font-size: 12px;
-    padding: 6px 10px;
-  }
-  .input-box input {
-    font-size: 14px;
-  }
+  .chatbot-page { padding: 16px; }
+  .chat-box { height: 400px; padding: 16px; }
+  .bubble { max-width: 90%; }
+  .suggestions { gap: 6px; }
+  .suggest-btn { padding: 6px 10px; }
 }
 </style>

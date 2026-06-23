@@ -56,7 +56,6 @@ onMounted(fetchPosts)
         <button @click="goToWrite" class="write-btn">✏️ 제보하기</button>
       </div>
 
-      <!-- 정렬 -->
       <div class="sort-bar">
         <button
           v-for="s in [
@@ -72,10 +71,8 @@ onMounted(fetchPosts)
         </button>
       </div>
 
-      <!-- 로딩 -->
       <div v-if="loading" class="loading">불러오는 중...</div>
 
-      <!-- 게시글 목록 -->
       <div v-else class="post-list">
         <div
           v-for="post in posts"
@@ -123,7 +120,7 @@ onMounted(fetchPosts)
   align-items: center;
 }
 h2 {
-  font-size: 22px;
+  font-size: calc(var(--base-font-size, 16px) + 6px);
   font-weight: bold;
   color: #333;
 }
@@ -134,7 +131,7 @@ h2 {
   border: none;
   border-radius: 8px;
   cursor: pointer;
-  font-size: 14px;
+  font-size: calc(var(--base-font-size, 16px) - 2px);
 }
 .sort-bar {
   display: flex;
@@ -146,7 +143,7 @@ h2 {
   border-radius: 20px;
   background: white;
   cursor: pointer;
-  font-size: 13px;
+  font-size: calc(var(--base-font-size, 16px) - 3px);
   color: #666;
 }
 .sort-btn.active {
@@ -179,7 +176,7 @@ h2 {
   align-items: center;
 }
 .category-badge {
-  font-size: 12px;
+  font-size: calc(var(--base-font-size, 16px) - 4px);
   padding: 4px 10px;
   background: #f0f4ff;
   color: #2c7be5;
@@ -187,28 +184,29 @@ h2 {
   font-weight: bold;
 }
 .post-date {
-  font-size: 12px;
+  font-size: calc(var(--base-font-size, 16px) - 4px);
   color: #aaa;
 }
 .post-title {
-  font-size: 16px;
+  font-size: var(--base-font-size, 16px);
   font-weight: bold;
   color: #222;
 }
 .post-address {
-  font-size: 13px;
+  font-size: calc(var(--base-font-size, 16px) - 3px);
   color: #888;
 }
 .post-footer {
   display: flex;
   gap: 16px;
-  font-size: 13px;
+  font-size: calc(var(--base-font-size, 16px) - 3px);
   color: #666;
 }
 .loading {
   text-align: center;
   color: #888;
   padding: 40px;
+  font-size: var(--base-font-size, 16px);
 }
 .empty {
   text-align: center;
@@ -216,6 +214,7 @@ h2 {
   padding: 60px;
   background: white;
   border-radius: 12px;
+  font-size: var(--base-font-size, 16px);
 }
 
 @media (max-width: 768px) {

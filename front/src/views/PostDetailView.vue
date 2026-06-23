@@ -96,7 +96,6 @@ onMounted(fetchPost)
       <div v-if="loading" class="loading">불러오는 중...</div>
 
       <template v-else-if="post">
-        <!-- 게시글 -->
         <div class="post-box">
           <div class="post-header">
             <span class="category-badge">{{ categoryLabel[post.category] || post.category }}</span>
@@ -118,11 +117,9 @@ onMounted(fetchPost)
           </div>
         </div>
 
-        <!-- 댓글 -->
         <div class="comment-box">
           <h3>댓글 {{ comments.length }}개</h3>
 
-          <!-- 댓글 작성 -->
           <div v-if="auth.isLoggedIn" class="comment-form">
             <input
               v-model="newComment"
@@ -133,7 +130,6 @@ onMounted(fetchPost)
             <button @click="handleComment">작성</button>
           </div>
 
-          <!-- 댓글 목록 -->
           <div class="comment-list">
             <div v-for="comment in comments" :key="comment.id" class="comment-item">
               <div class="comment-header">
@@ -176,7 +172,7 @@ onMounted(fetchPost)
   border: none;
   color: #2c7be5;
   cursor: pointer;
-  font-size: 14px;
+  font-size: calc(var(--base-font-size, 16px) - 2px);
   padding: 0;
   width: fit-content;
 }
@@ -195,7 +191,7 @@ onMounted(fetchPost)
   align-items: center;
 }
 .category-badge {
-  font-size: 12px;
+  font-size: calc(var(--base-font-size, 16px) - 4px);
   padding: 4px 10px;
   background: #f0f4ff;
   color: #2c7be5;
@@ -213,7 +209,7 @@ onMounted(fetchPost)
   border: none;
   border-radius: 6px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: calc(var(--base-font-size, 16px) - 3px);
 }
 .delete-btn {
   padding: 4px 12px;
@@ -222,26 +218,26 @@ onMounted(fetchPost)
   border: none;
   border-radius: 6px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: calc(var(--base-font-size, 16px) - 3px);
 }
 .post-title {
-  font-size: 20px;
+  font-size: calc(var(--base-font-size, 16px) + 4px);
   font-weight: bold;
   color: #222;
 }
 .post-meta {
-  font-size: 13px;
+  font-size: calc(var(--base-font-size, 16px) - 3px);
   color: #888;
 }
 .post-address {
-  font-size: 13px;
+  font-size: calc(var(--base-font-size, 16px) - 3px);
   color: #666;
   background: #f9f9f9;
   padding: 8px 12px;
   border-radius: 8px;
 }
 .post-content {
-  font-size: 15px;
+  font-size: var(--base-font-size, 16px);
   color: #333;
   line-height: 1.7;
   white-space: pre-wrap;
@@ -257,7 +253,7 @@ onMounted(fetchPost)
   border: none;
   border-radius: 20px;
   cursor: pointer;
-  font-size: 14px;
+  font-size: calc(var(--base-font-size, 16px) - 2px);
 }
 .comment-box {
   background: white;
@@ -269,7 +265,7 @@ onMounted(fetchPost)
   box-shadow: 0 2px 8px rgba(0,0,0,0.06);
 }
 .comment-box h3 {
-  font-size: 16px;
+  font-size: var(--base-font-size, 16px);
   font-weight: bold;
   color: #333;
 }
@@ -282,7 +278,7 @@ onMounted(fetchPost)
   padding: 10px 14px;
   border: 1px solid #ddd;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: calc(var(--base-font-size, 16px) - 2px);
   outline: none;
 }
 .comment-form input:focus {
@@ -295,7 +291,7 @@ onMounted(fetchPost)
   border: none;
   border-radius: 8px;
   cursor: pointer;
-  font-size: 14px;
+  font-size: calc(var(--base-font-size, 16px) - 2px);
 }
 .comment-list {
   display: flex;
@@ -316,12 +312,12 @@ onMounted(fetchPost)
   gap: 8px;
 }
 .comment-author {
-  font-size: 13px;
+  font-size: calc(var(--base-font-size, 16px) - 3px);
   font-weight: bold;
   color: #555;
 }
 .comment-date {
-  font-size: 12px;
+  font-size: calc(var(--base-font-size, 16px) - 4px);
   color: #aaa;
   flex: 1;
 }
@@ -330,22 +326,23 @@ onMounted(fetchPost)
   border: none;
   color: #aaa;
   cursor: pointer;
-  font-size: 12px;
+  font-size: calc(var(--base-font-size, 16px) - 4px);
 }
 .comment-content {
-  font-size: 14px;
+  font-size: calc(var(--base-font-size, 16px) - 2px);
   color: #333;
 }
 .empty-comment {
   text-align: center;
   color: #aaa;
   padding: 20px;
-  font-size: 14px;
+  font-size: calc(var(--base-font-size, 16px) - 2px);
 }
 .loading {
   text-align: center;
   color: #888;
   padding: 40px;
+  font-size: var(--base-font-size, 16px);
 }
 
 @media (max-width: 768px) {
@@ -363,9 +360,6 @@ onMounted(fetchPost)
   }
   .comment-form button {
     width: 100%;
-  }
-  .bubble {
-    max-width: 90%;
   }
 }
 </style>

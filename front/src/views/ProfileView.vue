@@ -53,9 +53,9 @@ const passwordForm = ref({
 
 const applyFontSize = (size) => {
   const root = document.documentElement
-  if (size === 'small') root.style.fontSize = '14px'
-  else if (size === 'large') root.style.fontSize = '18px'
-  else root.style.fontSize = '16px'
+  if (size === 'small') root.style.setProperty('--base-font-size', '14px')
+  else if (size === 'large') root.style.setProperty('--base-font-size', '18px')
+  else root.style.setProperty('--base-font-size', '16px')
 }
 
 onMounted(async () => {
@@ -152,16 +152,8 @@ const handleDeleteFavorite = async (id) => {
 
 const goToRoute = (fav) => {
   mapStore.setRoute(
-    {
-      name: fav.route.origin_name,
-      lat: fav.route.origin_lat,
-      lng: fav.route.origin_lng
-    },
-    {
-      name: fav.route.dest_name,
-      lat: fav.route.dest_lat,
-      lng: fav.route.dest_lng
-    }
+    { name: fav.route.origin_name, lat: fav.route.origin_lat, lng: fav.route.origin_lng },
+    { name: fav.route.dest_name, lat: fav.route.dest_lat, lng: fav.route.dest_lng }
   )
   router.push('/')
 }
@@ -197,7 +189,6 @@ const formatDate = (dateStr) => {
     <div class="profile-inner">
       <h2>마이페이지</h2>
 
-      <!-- 탭 -->
       <div class="tab-bar">
         <button
           v-for="tab in [
@@ -418,7 +409,7 @@ const formatDate = (dateStr) => {
   gap: 20px;
 }
 h2 {
-  font-size: 22px;
+  font-size: calc(var(--base-font-size, 16px) + 6px);
   font-weight: bold;
   color: #333;
 }
@@ -433,7 +424,7 @@ h2 {
   border-radius: 20px;
   background: white;
   cursor: pointer;
-  font-size: 13px;
+  font-size: calc(var(--base-font-size, 16px) - 3px);
   color: #666;
 }
 .tab-btn.active {
@@ -467,17 +458,17 @@ h2 {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 24px;
+  font-size: calc(var(--base-font-size, 16px) + 8px);
   font-weight: bold;
   flex-shrink: 0;
 }
 .user-details h3 {
-  font-size: 18px;
+  font-size: calc(var(--base-font-size, 16px) + 2px);
   font-weight: bold;
   color: #333;
 }
 .user-details p {
-  font-size: 13px;
+  font-size: calc(var(--base-font-size, 16px) - 3px);
   color: #888;
   margin-top: 2px;
 }
@@ -488,7 +479,7 @@ h2 {
   background: #2c7be5;
   color: white;
   border-radius: 20px;
-  font-size: 12px;
+  font-size: calc(var(--base-font-size, 16px) - 4px);
 }
 .stats-grid {
   display: grid;
@@ -505,12 +496,12 @@ h2 {
   gap: 4px;
 }
 .stat-value {
-  font-size: 22px;
+  font-size: calc(var(--base-font-size, 16px) + 6px);
   font-weight: bold;
   color: #2c7be5;
 }
 .stat-label {
-  font-size: 12px;
+  font-size: calc(var(--base-font-size, 16px) - 4px);
   color: #888;
 }
 .section-box {
@@ -519,7 +510,7 @@ h2 {
   gap: 10px;
 }
 .section-box h4 {
-  font-size: 15px;
+  font-size: var(--base-font-size, 16px);
   font-weight: bold;
   color: #333;
 }
@@ -535,21 +526,17 @@ h2 {
   padding: 10px 12px;
   background: #f9f9f9;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: calc(var(--base-font-size, 16px) - 2px);
   color: #333;
 }
-.small-item.clickable {
-  cursor: pointer;
-}
-.small-item.clickable:hover {
-  background: #f0f4ff;
-}
+.small-item.clickable { cursor: pointer; }
+.small-item.clickable:hover { background: #f0f4ff; }
 .small-sub {
-  font-size: 12px;
+  font-size: calc(var(--base-font-size, 16px) - 4px);
   color: #aaa;
 }
 .empty-small {
-  font-size: 13px;
+  font-size: calc(var(--base-font-size, 16px) - 3px);
   color: #aaa;
   padding: 8px 0;
 }
@@ -564,7 +551,7 @@ h2 {
   gap: 8px;
 }
 label {
-  font-size: 14px;
+  font-size: calc(var(--base-font-size, 16px) - 2px);
   font-weight: bold;
   color: #555;
 }
@@ -573,7 +560,7 @@ input[type="password"] {
   padding: 10px 14px;
   border: 1px solid #ddd;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: calc(var(--base-font-size, 16px) - 2px);
   outline: none;
 }
 input[type="text"]:focus,
@@ -595,7 +582,7 @@ input[type="range"] {
   border-radius: 20px;
   background: white;
   cursor: pointer;
-  font-size: 13px;
+  font-size: calc(var(--base-font-size, 16px) - 3px);
   color: #666;
 }
 .opt-btn.active {
@@ -609,24 +596,22 @@ input[type="range"] {
   color: white;
   border: none;
   border-radius: 8px;
-  font-size: 15px;
+  font-size: var(--base-font-size, 16px);
   cursor: pointer;
 }
-.save-btn:disabled {
-  background: #aaa;
-}
+.save-btn:disabled { background: #aaa; }
 .delete-account-btn {
   padding: 10px;
   background: white;
   color: #e53e3e;
   border: 1px solid #e53e3e;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: calc(var(--base-font-size, 16px) - 2px);
   cursor: pointer;
 }
 .success-msg {
   color: #38a169;
-  font-size: 14px;
+  font-size: calc(var(--base-font-size, 16px) - 2px);
 }
 hr {
   border: none;
@@ -651,12 +636,12 @@ hr {
   gap: 4px;
 }
 .list-title {
-  font-size: 15px;
+  font-size: var(--base-font-size, 16px);
   font-weight: bold;
   color: #333;
 }
 .list-sub {
-  font-size: 13px;
+  font-size: calc(var(--base-font-size, 16px) - 3px);
   color: #888;
 }
 .del-btn {
@@ -666,38 +651,21 @@ hr {
   border: none;
   border-radius: 6px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: calc(var(--base-font-size, 16px) - 3px);
 }
 .empty {
   text-align: center;
   color: #aaa;
   padding: 40px;
+  font-size: var(--base-font-size, 16px);
 }
 @media (max-width: 768px) {
-  .profile-page {
-    padding: 16px;
-  }
-  .tab-content {
-    padding: 16px;
-  }
-  .tab-bar {
-    gap: 6px;
-  }
-  .tab-btn {
-    padding: 6px 12px;
-    font-size: 12px;
-  }
-  .stats-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
-  .list-item {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
-  }
-  .del-btn {
-    width: 100%;
-    text-align: center;
-  }
+  .profile-page { padding: 16px; }
+  .tab-content { padding: 16px; }
+  .tab-bar { gap: 6px; }
+  .tab-btn { padding: 6px 12px; }
+  .stats-grid { grid-template-columns: repeat(3, 1fr); }
+  .list-item { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .del-btn { width: 100%; text-align: center; }
 }
 </style>

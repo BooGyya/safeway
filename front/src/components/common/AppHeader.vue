@@ -88,7 +88,7 @@ const closeMenu = () => {
 }
 .logo {
   color: white;
-  font-size: 20px;
+  font-size: calc(var(--base-font-size, 16px) + 4px);
   font-weight: bold;
   text-decoration: none;
 }
@@ -100,7 +100,7 @@ const closeMenu = () => {
 .desktop-nav a {
   color: white;
   text-decoration: none;
-  font-size: 15px;
+  font-size: var(--base-font-size, 16px);
 }
 .auth-buttons button {
   background: transparent;
@@ -109,11 +109,11 @@ const closeMenu = () => {
   padding: 4px 12px;
   border-radius: 4px;
   cursor: pointer;
-  font-size: 14px;
+  font-size: calc(var(--base-font-size, 16px) - 2px);
 }
 .username {
   color: white;
-  font-size: 14px;
+  font-size: calc(var(--base-font-size, 16px) - 2px);
 }
 .mypage-btn {
   background: transparent;
@@ -121,7 +121,7 @@ const closeMenu = () => {
   color: white !important;
   padding: 4px 12px;
   border-radius: 4px;
-  font-size: 14px;
+  font-size: calc(var(--base-font-size, 16px) - 2px);
   text-decoration: none !important;
 }
 
@@ -155,7 +155,7 @@ const closeMenu = () => {
 .mobile-menu a {
   color: white;
   text-decoration: none;
-  font-size: 16px;
+  font-size: var(--base-font-size, 16px);
 }
 .mobile-menu button {
   background: transparent;
@@ -164,7 +164,7 @@ const closeMenu = () => {
   padding: 8px 16px;
   border-radius: 4px;
   cursor: pointer;
-  font-size: 15px;
+  font-size: calc(var(--base-font-size, 16px) - 1px);
   width: fit-content;
 }
 .mobile-menu hr {
