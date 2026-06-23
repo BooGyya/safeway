@@ -123,10 +123,17 @@ const fetchFavorites = async () => {
   }
 }
 
+const getHiddenHistoryIds = () => {
+  try {
+    return JSON.parse(localStorage.getItem('hiddenHistoryIds') || '[]')
+  } catch { return [] }
+}
+
 const fetchHistory = async () => {
   try {
     const { data } = await routeAPI.getHistory()
-    history.value = data
+    const hiddenIds = getHiddenHistoryIds()
+    history.value = data.filter(item => !hiddenIds.includes(item.id))
   } catch {
     console.error('히스토리 로드 실패')
   }
@@ -198,6 +205,19 @@ const handleDeleteFavorite = async (id) => {
   } catch {
     alert('삭제에 실패했습니다.')
   }
+}
+
+const handleDeleteHistory = (id) => {
+  if (!confirm('탐색 기록을 삭제하시겠습니까?')) return
+  const hiddenIds = getHiddenHistoryIds()
+  hiddenIds.push(id)
+  localStorage.setItem('hiddenHistoryIds', JSON.stringify(hiddenIds))
+  history.value = history.value.filter(item => item.id !== id)
+}
+
+const transportLabel = (type) => {
+  const labels = { walk: '🚶 도보', bus: '🚌 대중교통', taxi: '🚕 택시' }
+  return labels[type] || type
 }
 
 const goToRoute = (fav) => {
@@ -408,12 +428,19 @@ const formatDate = (dateStr) => {
       <div v-if="activeTab === 'favorites'" class="tab-content">
         <div v-if="favorites.length === 0" class="empty">즐겨찾기가 없어요.</div>
         <div v-else class="list-box">
-          <div v-for="fav in favorites" :key="fav.id" class="list-item">
-            <div class="list-info" @click="goToRoute(fav)" style="cursor:pointer">
-              <span class="list-title">{{ fav.nickname || `${fav.route?.origin_name} → ${fav.route?.dest_name}` }}</span>
-              <span class="list-sub">{{ fav.route?.origin_name }} → {{ fav.route?.dest_name }}</span>
+          <div v-for="fav in favorites" :key="fav.id" class="list-item clickable" @click="goToRoute(fav)">
+            <div class="list-info">
+              <span v-if="fav.nickname" class="list-title">{{ fav.nickname }}</span>
+              <span :class="fav.nickname ? 'list-sub' : 'list-title'">{{ fav.route?.origin_name }} → {{ fav.route?.dest_name }}</span>
+              <span class="list-sub">
+                <span class="transport-badge">{{ transportLabel(fav.route?.transport_type) }}</span>
+                {{ formatDistance(fav.route?.distance) }} · {{ formatDuration(fav.route?.duration) }}
+              </span>
             </div>
-            <button @click="handleDeleteFavorite(fav.id)" class="del-btn">삭제</button>
+            <div class="list-actions">
+              <span class="list-date">{{ formatDate(fav.created_at) }}</span>
+              <button @click.stop="handleDeleteFavorite(fav.id)" class="del-btn">삭제</button>
+            </div>
           </div>
         </div>
       </div>
@@ -422,10 +449,17 @@ const formatDate = (dateStr) => {
       <div v-if="activeTab === 'history'" class="tab-content">
         <div v-if="history.length === 0" class="empty">탐색 기록이 없어요.</div>
         <div v-else class="list-box">
-          <div v-for="item in history" :key="item.id" class="list-item">
+          <div v-for="item in history" :key="item.id" class="list-item clickable" @click="goToRoute(item)">
             <div class="list-info">
               <span class="list-title">{{ item.route.origin_name }} → {{ item.route.dest_name }}</span>
-              <span class="list-sub">{{ formatDistance(item.route.distance) }} · {{ formatDuration(item.route.duration) }}</span>
+              <span class="list-sub">
+                <span class="transport-badge">{{ transportLabel(item.route.transport_type) }}</span>
+                {{ formatDistance(item.route.distance) }} · {{ formatDuration(item.route.duration) }}
+              </span>
+            </div>
+            <div class="list-actions">
+              <span class="list-date">{{ formatDate(item.used_at) }}</span>
+              <button @click.stop="handleDeleteHistory(item.id)" class="del-btn">삭제</button>
             </div>
           </div>
         </div>
@@ -751,6 +785,27 @@ hr { border: none; border-top: 1px solid #eee; }
 .list-sub {
   font-size: calc(var(--base-font-size, 16px) - 3px);
   color: #888;
+}
+.list-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.list-date {
+  font-size: calc(var(--base-font-size, 16px) - 4px);
+  color: #aaa;
+  white-space: nowrap;
+}
+.transport-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  background: #e6f7ee;
+  color: #2eb872;
+  border-radius: 10px;
+  font-size: calc(var(--base-font-size, 16px) - 4px);
+  font-weight: 600;
+  margin-right: 4px;
 }
 .del-btn {
   padding: 6px 14px;

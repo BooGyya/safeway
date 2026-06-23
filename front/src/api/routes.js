@@ -8,4 +8,5 @@ export const routeAPI = {
   updateFavorite: (id, data) => api.patch(`/api/routes/favorites/${id}/`, data),
   deleteFavorite: (id) => api.delete(`/api/routes/favorites/${id}/`),
   getHistory: () => api.get('/api/routes/history/'),
+  deleteHistory: (id) => api.delete(`/api/routes/history/${id}/`),
 }
