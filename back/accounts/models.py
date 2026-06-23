@@ -4,7 +4,6 @@ from django.db import models
 
 class User(AbstractUser):
     
-    # 교통약자 유형
     USER_TYPE_CHOICES = [
         ('disabled', '장애인'),
         ('elderly', '노인'),
@@ -19,6 +18,19 @@ class User(AbstractUser):
         default='normal'
     )
     
+    # 별명
+    nickname = models.CharField(max_length=50, blank=True)
+    
+    # 실명
+    name = models.CharField(max_length=50, blank=True)
+    
+    # 전화번호
+    phone = models.CharField(max_length=20, blank=True)
+    
+    # 약관 동의
+    terms_agreed = models.BooleanField(default=False)
+    privacy_agreed = models.BooleanField(default=False)
+    
     # 보행 속도 (m/s)
     walk_speed = models.FloatField(default=1.0)
     
@@ -29,7 +41,6 @@ class User(AbstractUser):
         null=True
     )
     
-    # 글씨 크기
     FONT_SIZE_CHOICES = [
         ('small', '작게'),
         ('medium', '보통'),
@@ -41,11 +52,9 @@ class User(AbstractUser):
         default='medium'
     )
     
-    # 안내 음성
     voice_type = models.CharField(max_length=20, default='female')
     voice_volume = models.IntegerField(default=70)
     
-    # SOS 보호자 번호
     sos_number = models.CharField(max_length=20, blank=True)
     
     created_at = models.DateTimeField(auto_now_add=True)
