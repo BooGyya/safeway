@@ -99,50 +99,35 @@ def get_kakao_car_route(origin_lat, origin_lng, dest_lat, dest_lng):
         return None
 
 def calculate_safety_score(waypoints, user_type):
-    """경로 안전도 점수 계산"""
+    """경로 안전도 점수 계산 (음향신호기/잔여시간표시기 비율 기반)"""
     if not waypoints:
         return 0.5
 
-    score = 1.0
-    radius = 0.001  # 약 100m
+    lats = [wp['lat'] for wp in waypoints]
+    lngs = [wp['lng'] for wp in waypoints]
+    min_lat, max_lat = min(lats), max(lats)
+    min_lng, max_lng = min(lngs), max(lngs)
+    padding = 0.001
 
-    for point in waypoints:
-        lat, lng = point.get('lat'), point.get('lng')
-        if not lat or not lng:
-            continue
+    lights = TrafficLight.objects.filter(
+        lat__range=(min_lat - padding, max_lat + padding),
+        lng__range=(min_lng - padding, max_lng + padding),
+    )
 
-        # 주변 신호등 조회
-        lights = TrafficLight.objects.filter(
-            lat__range=(lat - radius, lat + radius),
-            lng__range=(lng - radius, lng + radius),
-            is_operating=True
-        )
+    total = lights.count()
+    if total == 0:
+        return 0.5
 
-        for light in lights:
-            green_time = light.get_pedestrian_green_time()
+    audio_count = lights.filter(has_audio=True).count()
+    remndr_count = lights.filter(has_remndr=True).count()
 
-            # 사용자 유형별 보행속도 (m/s)
-            speed_map = {
-                'wheelchair': 0.5,
-                'elderly': 0.7,
-                'disabled': 0.6,
-                'pregnant': 0.8,
-                'normal': 1.0,
-            }
-            speed = speed_map.get(user_type, 1.0)
+    # 음향신호기 비율 (시각장애인 유형이면 가중치 높임)
+    if user_type == 'disabled':
+        score = (audio_count / total) * 0.7 + (remndr_count / total) * 0.3
+    else:
+        score = (audio_count / total) * 0.4 + (remndr_count / total) * 0.6
 
-            # 횡단보도 거리 (약 10m 가정)
-            crossing_dist = 10
-            time_needed = crossing_dist / speed
-
-            if green_time and green_time < time_needed:
-                score -= 0.1
-
-            # 음향신호기 없으면 시각장애인에게 불리
-            if user_type == 'disabled' and not light.has_audio:
-                score -= 0.05
-
-    return max(0.0, min(1.0, score))
+    return round(max(0.0, min(1.0, score)), 2)
 
 
 def get_weather_info(lat, lng):
@@ -190,18 +175,21 @@ def search_route(request):
     origin_lat, origin_lng = float(origin_lat), float(origin_lng)
     dest_lat, dest_lng = float(dest_lat), float(dest_lng)
 
-    # TMAP 보행자 경로 탐색
-    user_speed = request.user.walk_speed if request.user.is_authenticated else 1.0
-    user_type = request.user.user_type if request.user.is_authenticated else 'normal'
+    user_speed = float(request.data.get('walk_speed',
+        request.user.walk_speed if request.user.is_authenticated else 1.0))
+    user_type = request.data.get('user_type',
+        request.user.user_type if request.user.is_authenticated else 'normal')
 
     waypoints = []
     distance = 0
     duration = 0
+    route_error = None
 
     if transport_type == 'bus':
         tmap_data = get_tmap_transit_route(origin_lat, origin_lng, dest_lat, dest_lng)
-        # 대중교통 응답 파싱
-        if tmap_data and tmap_data.get('metaData'):
+        if not tmap_data or not tmap_data.get('metaData'):
+            route_error = '대중교통 경로를 찾을 수 없습니다.'
+        else:
             plan = tmap_data['metaData'].get('plan', {})
             itineraries = plan.get('itineraries', [])
             if itineraries:
@@ -209,13 +197,10 @@ def search_route(request):
                 distance = best.get('totalDistance', 0)
                 duration = best.get('totalTime', 0)
                 for leg in best.get('legs', []):
-                    # 출발/도착 좌표 추가
                     start = leg.get('start', {})
                     end = leg.get('end', {})
                     if start.get('lat') and start.get('lon'):
                         waypoints.append({'lat': start['lat'], 'lng': start['lon']})
-                    
-                    # steps의 linestring 파싱
                     steps = leg.get('steps', [])
                     for step in steps:
                         linestring = step.get('linestring', '')
@@ -230,12 +215,16 @@ def search_route(request):
                                         })
                                     except ValueError:
                                         pass
-                    
                     if end.get('lat') and end.get('lon'):
                         waypoints.append({'lat': end['lat'], 'lng': end['lon']})
+            else:
+                route_error = '대중교통 경로를 찾을 수 없습니다.'
+
     elif transport_type == 'taxi':
         tmap_data = get_kakao_car_route(origin_lat, origin_lng, dest_lat, dest_lng)
-        if tmap_data and tmap_data.get('routes'):
+        if not tmap_data or not tmap_data.get('routes'):
+            route_error = '택시 경로를 찾을 수 없습니다.'
+        else:
             route_data_kakao = tmap_data['routes'][0]
             distance = route_data_kakao.get('summary', {}).get('distance', 0)
             duration = route_data_kakao.get('summary', {}).get('duration', 0)
@@ -247,24 +236,31 @@ def search_route(request):
                             'lat': vertexes[i+1],
                             'lng': vertexes[i],
                         })
+
     else:  # walk
         tmap_data = get_tmap_route(origin_lat, origin_lng, dest_lat, dest_lng, speed=user_speed, user_type=user_type)
-        if tmap_data and tmap_data.get('features'):
+        if not tmap_data or not tmap_data.get('features'):
+            route_error = '도보 경로를 찾을 수 없습니다.'
+        else:
             for feature in tmap_data['features']:
                 geometry = feature.get('geometry', {})
                 properties = feature.get('properties', {})
-
                 if properties.get('totalDistance'):
                     distance = properties['totalDistance']
                 if properties.get('totalTime'):
                     duration = properties['totalTime']
-
                 if geometry.get('type') == 'LineString':
                     for coord in geometry.get('coordinates', []):
                         waypoints.append({
                             'lat': coord[1],
                             'lng': coord[0],
                         })
+
+    if route_error:
+        return Response(
+            {'error': route_error},
+            status=status.HTTP_400_BAD_REQUEST
+        )
 
     # 날씨 정보 조회
     weather = get_weather_info(origin_lat, origin_lng)
@@ -274,7 +270,11 @@ def search_route(request):
         bad_weather = ['Rain', 'Snow', 'Thunderstorm', 'Drizzle']
         if weather['weather'] in bad_weather or weather['wind_speed'] > 10:
             weather_applied = True
-            duration = int(duration * 1.2)  # 20% 추가 소요
+            duration = int(duration * 1.2)
+
+    # 보행속도로 duration 재계산 (도보일 때만)
+    if transport_type == 'walk' and distance > 0 and user_speed > 0:
+        duration = int(distance / user_speed)
 
     # 안전도 점수 계산
     safety_score = calculate_safety_score(waypoints, user_type)
@@ -312,6 +312,7 @@ def search_route(request):
             'waypoints': waypoints,
             'weather_applied': weather_applied,
         }
+
     # 경로 주변 편의시설 정보 수집
     nearby = {
         'traffic_lights': [],
@@ -320,19 +321,16 @@ def search_route(request):
     }
 
     if waypoints:
-        # 경로 전체 범위 계산
         lats = [wp['lat'] for wp in waypoints]
         lngs = [wp['lng'] for wp in waypoints]
         min_lat, max_lat = min(lats), max(lats)
         min_lng, max_lng = min(lngs), max(lngs)
-        padding = 0.002  # 약 200m 여유
+        padding = 0.005
 
-        # 음향신호기
         lights = TrafficLight.objects.filter(
             lat__range=(min_lat - padding, max_lat + padding),
             lng__range=(min_lng - padding, max_lng + padding),
-            has_audio=True,
-            is_operating=True
+            has_remndr=True,
         )[:20]
         nearby['traffic_lights'] = [
             {
@@ -346,7 +344,6 @@ def search_route(request):
             for l in lights
         ]
 
-        # 편의시설
         facilities = Facility.objects.filter(
             lat__range=(min_lat - padding, max_lat + padding),
             lng__range=(min_lng - padding, max_lng + padding),
@@ -364,7 +361,6 @@ def search_route(request):
             for f in facilities
         ]
 
-        # 교통약자 이동지원센터
         centers = SupportCenter.objects.filter(
             lat__range=(min_lat - padding, max_lat + padding),
             lng__range=(min_lng - padding, max_lng + padding),

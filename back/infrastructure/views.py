@@ -31,7 +31,6 @@ def nearby_traffic_lights(request):
     lights = TrafficLight.objects.filter(
         lat__range=(lat - radius, lat + radius),
         lng__range=(lng - radius, lng + radius),
-        is_operating=True
     )
 
     serializer = TrafficLightSerializer(lights, many=True)
@@ -58,7 +57,6 @@ def audio_traffic_lights(request):
         lat__range=(lat - radius, lat + radius),
         lng__range=(lng - radius, lng + radius),
         has_audio=True,
-        is_operating=True
     )
 
     serializer = TrafficLightSerializer(lights, many=True)
@@ -217,7 +215,7 @@ def seoul_congestion(request):
 def nearby_elevators(request):
     lat = request.query_params.get('lat')
     lng = request.query_params.get('lng')
-    radius = float(request.query_params.get('radius', 0.01))
+    radius = int(request.query_params.get('radius', 500))
 
     if not lat or not lng:
         return Response(
@@ -227,14 +225,40 @@ def nearby_elevators(request):
 
     lat, lng = float(lat), float(lng)
 
-    elevators = Elevator.objects.filter(
-        lat__range=(lat - radius, lat + radius),
-        lng__range=(lng - radius, lng + radius),
-        is_operating=True
-    )
+    API_KEY = os.getenv('KAKAO_REST_API_KEY')
+    url = 'https://dapi.kakao.com/v2/local/search/keyword.json'
+    headers = {'Authorization': f'KakaoAK {API_KEY}'}
+    params = {
+        'query': '장애인 엘리베이터',
+        'x': lng,
+        'y': lat,
+        'radius': radius,
+        'sort': 'distance',
+        'size': 15,
+    }
 
-    serializer = ElevatorSerializer(elevators, many=True)
-    return Response(serializer.data)
+    try:
+        response = requests.get(url, headers=headers, params=params, timeout=5)
+        data = response.json()
+        results = [
+            {
+                'name': doc['place_name'],
+                'address': doc['road_address_name'] or doc['address_name'],
+                'lat': float(doc['y']),
+                'lng': float(doc['x']),
+                'distance': doc.get('distance', ''),
+            }
+            for doc in data.get('documents', [])
+        ]
+        return Response({
+            'count': len(results),
+            'results': results,
+        })
+    except Exception as e:
+        return Response(
+            {'error': f'엘리베이터 검색 실패: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
 
 # 주변 병원/복지시설/약국 조회
 @api_view(['GET'])
