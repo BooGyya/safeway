@@ -280,44 +280,53 @@ def nearby_places(request):
     API_KEY = os.getenv('KAKAO_REST_API_KEY')
     headers = {'Authorization': f'KakaoAK {API_KEY}'}
 
-    if place_type == 'welfare':
-        url = 'https://dapi.kakao.com/v2/local/search/keyword.json'
-        params = {
-            'query': '사회복지',
-            'x': lng,
-            'y': lat,
-            'radius': radius,
-            'sort': 'distance',
-            'size': 15,
-        }
-    else:
-        category_map = {
-            'hospital': 'HP8',
-            'pharmacy': 'PM9',
-            'public': 'PO3',
-        }
-        category_code = category_map.get(place_type, 'HP8')
-        url = 'https://dapi.kakao.com/v2/local/search/category.json'
-        params = {
-            'category_group_code': category_code,
-            'x': lng,
-            'y': lat,
-            'radius': radius,
-            'sort': 'distance',
-            'size': 15,
-        }
-
     try:
-        response = requests.get(url, headers=headers, params=params, timeout=5)
-        data = response.json()
-
-        docs = data.get('documents', [])
         if place_type == 'welfare':
-            EXCLUDE_KEYWORDS = ['대학교', '대학원', '유치원', '학교', '학원', '식당', '카페', '마트']
+            search_keywords = ['사회복지', '복지관', '복지센터']
+            all_docs = []
+            seen_ids = set()
+
+            for keyword in search_keywords:
+                url = 'https://dapi.kakao.com/v2/local/search/keyword.json'
+                params = {
+                    'query': keyword,
+                    'x': lng,
+                    'y': lat,
+                    'radius': radius,
+                    'sort': 'distance',
+                    'size': 15,
+                }
+                resp = requests.get(url, headers=headers, params=params, timeout=5)
+                for doc in resp.json().get('documents', []):
+                    if doc['id'] not in seen_ids:
+                        seen_ids.add(doc['id'])
+                        all_docs.append(doc)
+
+            EXCLUDE_KEYWORDS = ['대학교', '대학원', '유치원', '학교', '학원', '식당', '카페', '마트', '키즈']
             docs = [
-                doc for doc in docs
+                doc for doc in all_docs
                 if not any(kw in doc['place_name'] for kw in EXCLUDE_KEYWORDS)
             ]
+            docs = sorted(docs, key=lambda x: int(x.get('distance', 0)))[:30]
+
+        else:
+            category_map = {
+                'hospital': 'HP8',
+                'pharmacy': 'PM9',
+                'public': 'PO3',
+            }
+            category_code = category_map.get(place_type, 'HP8')
+            url = 'https://dapi.kakao.com/v2/local/search/category.json'
+            params = {
+                'category_group_code': category_code,
+                'x': lng,
+                'y': lat,
+                'radius': radius,
+                'sort': 'distance',
+                'size': 15,
+            }
+            resp = requests.get(url, headers=headers, params=params, timeout=5)
+            docs = resp.json().get('documents', [])
 
         results = [
             {
