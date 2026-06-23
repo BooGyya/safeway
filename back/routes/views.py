@@ -272,6 +272,10 @@ def search_route(request):
             weather_applied = True
             duration = int(duration * 1.2)
 
+    # 보행속도로 duration 재계산 (도보일 때만)
+    if transport_type == 'walk' and distance > 0 and user_speed > 0:
+        duration = int(distance / user_speed)
+
     # 안전도 점수 계산
     safety_score = calculate_safety_score(waypoints, user_type)
 
