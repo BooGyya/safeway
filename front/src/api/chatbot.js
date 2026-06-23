@@ -6,4 +6,7 @@ export const chatbotAPI = {
 
   filter: (content) =>
     api.post('/api/chatbot/filter/', { content }),
+
+  getHistory: () =>
+    api.get('/api/chatbot/history/'),
 }

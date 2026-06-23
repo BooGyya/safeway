@@ -24,4 +24,8 @@ export const communityAPI = {
   // 팔로우
   followUser: (id) => api.post(`/api/community/users/${id}/follow/`),
   getFollowList: () => api.get('/api/community/follow/'),
+
+  // 공지사항
+  getNotices: () => api.get('/api/community/notices/'),
+  getNotice: (id) => api.get(`/api/community/notices/${id}/`),
 }

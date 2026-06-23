@@ -34,15 +34,25 @@ const routes = [
     component: () => import('@/views/CommunityView.vue')
   },
   {
-    path: '/community/:id',
-    name: 'PostDetail',
-    component: () => import('@/views/PostDetailView.vue')
-  },
-  {
     path: '/community/write',
     name: 'PostWrite',
     component: () => import('@/views/PostWriteView.vue'),
     meta: { requiresAuth: true }
+  },
+  {
+    path: '/community/notices',
+    name: 'Notice',
+    component: () => import('@/views/NoticeView.vue')
+  },
+  {
+    path: '/community/notices/:id',
+    name: 'NoticeDetail',
+    component: () => import('@/views/NoticeDetailView.vue')
+  },
+  {
+    path: '/community/:id',
+    name: 'PostDetail',
+    component: () => import('@/views/PostDetailView.vue')
   },
   {
     path: '/chatbot',
