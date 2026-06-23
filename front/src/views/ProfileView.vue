@@ -160,7 +160,11 @@ const handleChangePassword = async () => {
     return
   }
   try {
-    await authAPI.changePassword(passwordForm.value)
+    await authAPI.changePassword({
+      old_password: passwordForm.value.old_password,
+      new_password: passwordForm.value.new_password,
+      new_password2: passwordForm.value.new_password  // 추가
+    })
     alert('비밀번호가 변경되었습니다.')
     passwordForm.value = { old_password: '', new_password: '' }
   } catch {
