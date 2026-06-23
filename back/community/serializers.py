@@ -9,12 +9,13 @@ class PostImageSerializer(serializers.ModelSerializer):
 
 class CommentSerializer(serializers.ModelSerializer):
     username = serializers.CharField(source='user.username', read_only=True)
+    nickname = serializers.CharField(source='user.nickname', read_only=True)  # ← 추가
     user_id = serializers.IntegerField(source='user.id', read_only=True)
 
     class Meta:
         model = Comment
         fields = [
-            'id', 'username', 'user_id', 'content',
+            'id', 'username', 'nickname', 'user_id', 'content',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'username', 'user_id', 'created_at', 'updated_at']
@@ -22,6 +23,7 @@ class CommentSerializer(serializers.ModelSerializer):
 
 class PostSerializer(serializers.ModelSerializer):
     username = serializers.CharField(source='user.username', read_only=True)
+    nickname = serializers.CharField(source='user.nickname', read_only=True)
     user_id = serializers.IntegerField(source='user.id', read_only=True)
     like_count = serializers.IntegerField(source='likes.count', read_only=True)
     comment_count = serializers.IntegerField(source='comments.count', read_only=True)
@@ -32,7 +34,7 @@ class PostSerializer(serializers.ModelSerializer):
     class Meta:
         model = Post
         fields = [
-            'id', 'username', 'user_id', 'title', 'content',
+            'id', 'username', 'nickname', 'user_id', 'title', 'content',
             'category', 'latitude', 'longitude', 'address',
             'reliability_score', 'is_trusted', 'view_count',
             'like_count', 'comment_count', 'is_liked', 'is_following',
