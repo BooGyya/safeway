@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { communityAPI } from '@/api/community'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
@@ -11,6 +11,7 @@ const posts = ref([])
 const notices = ref([])
 const sort = ref('latest')
 const loading = ref(false)
+const followingCount = ref(0)
 
 const categoryLabel = {
   danger: '⚠️ 위험',
@@ -42,7 +43,14 @@ const fetchPosts = async () => {
   loading.value = true
   try {
     const { data } = await communityAPI.getPosts(sort.value)
-    posts.value = data.results
+    let results = data.results
+    if (sort.value === 'following' && auth.isLoggedIn) {
+      const followed = results.filter(p => p.is_following)
+      const others = results.filter(p => !p.is_following)
+      results = [...followed, ...others]
+    }
+    posts.value = results
+    followingCount.value = sort.value === 'following' ? results.filter(p => p.is_following).length : 0
   } catch {
     console.error('게시글 로드 실패')
   } finally {
@@ -70,7 +78,9 @@ const goToWrite = () => {
 
 const formatDate = (dateStr) => {
   const date = new Date(dateStr)
-  return `${date.getFullYear()}.${date.getMonth()+1}.${date.getDate()}`
+  const h = String(date.getHours()).padStart(2, '0')
+  const m = String(date.getMinutes()).padStart(2, '0')
+  return `${date.getFullYear()}.${date.getMonth()+1}.${date.getDate()} ${h}:${m}`
 }
 
 onMounted(() => {
@@ -109,7 +119,6 @@ onMounted(() => {
         <button
           v-for="s in [
             { value: 'latest', label: '최신순' },
-            { value: 'reliability', label: '신뢰도순' },
             { value: 'following', label: '팔로우 우선' }
           ]"
           :key="s.value"
@@ -123,12 +132,17 @@ onMounted(() => {
       <div v-if="loading" class="loading">불러오는 중...</div>
 
       <div v-else class="post-list">
-        <div
-          v-for="post in posts"
-          :key="post.id"
-          class="post-card"
-          @click="router.push(`/community/${post.id}`)"
-        >
+        <div v-if="sort === 'following' && followingCount > 0" class="follow-divider">
+          <span>팔로우 중</span>
+        </div>
+        <template v-for="(post, index) in posts" :key="post.id">
+          <div v-if="sort === 'following' && followingCount > 0 && index === followingCount" class="follow-divider">
+            <span>일반 게시글</span>
+          </div>
+          <div
+            class="post-card"
+            @click="router.push(`/community/${post.id}`)"
+          >
           <div class="post-header">
             <span class="category-badge">{{ categoryLabel[post.category] || post.category }}</span>
             <span class="post-date">{{ formatDate(post.created_at) }}</span>
@@ -140,7 +154,8 @@ onMounted(() => {
             <span>❤️ {{ post.like_count || 0 }}</span>
             <span>💬 {{ post.comment_count || 0 }}</span>
           </div>
-        </div>
+          </div>
+        </template>
 
         <div v-if="posts.length === 0" class="empty">
           아직 게시글이 없어요. 첫 번째로 제보해보세요!
@@ -308,6 +323,20 @@ h2 {
   gap: 16px;
   font-size: calc(var(--base-font-size, 16px) - 3px);
   color: #666;
+}
+.follow-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #999;
+  font-size: calc(var(--base-font-size, 16px) - 3px);
+  font-weight: 600;
+}
+.follow-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #ddd;
 }
 .loading {
   text-align: center;

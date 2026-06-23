@@ -347,9 +347,31 @@ const toggleCategory = async (categoryKey) => {
     let places = []
 
     if (categoryKey === 'elevator') {
-      const { data } = await infraAPI.getElevators(lat, lng)
-      places = Array.isArray(data) ? data : data.results || []
-    } else if (categoryKey === 'support_center') {
+      await new Promise((resolve) => {
+        const ps = new window.kakao.maps.services.Places()
+        ps.keywordSearch(
+          '엘리베이터',
+          (result, status) => {
+            if (status === window.kakao.maps.services.Status.OK) {
+              places = result.map(p => ({
+                name: p.place_name,
+                lat: parseFloat(p.y),
+                lng: parseFloat(p.x),
+                address: p.road_address_name || p.address_name,
+                phone: p.phone,
+                place_url: p.place_url,
+              }))
+            }
+            resolve()
+          },
+          {
+            location: new window.kakao.maps.LatLng(lat, lng),
+            radius: 1000,
+            size: 15,
+          }
+        )
+      })
+} else if (categoryKey === 'support_center') {
       const { data } = await infraAPI.getSupportCenters(lat, lng)
       places = Array.isArray(data) ? data : data.results || []
     } else {
@@ -357,6 +379,7 @@ const toggleCategory = async (categoryKey) => {
       places = data.results || []
     }
 
+    // 이하 마커 생성 코드는 기존과 동일
     const markerImage = createCategoryMarkerImage(category.color)
     const newMarkers = []
 
