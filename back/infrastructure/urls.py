@@ -25,4 +25,7 @@ urlpatterns = [
     # 시설명으로 검색
     path('facilities/search/', views.search_facilities, name='search_facilities'),
 
+    # 시설 상세 조회
+    path('facilities/<int:facility_id>/', views.facility_detail, name='facility_detail'),
+
 ]
