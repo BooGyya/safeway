@@ -280,11 +280,10 @@ def nearby_places(request):
     API_KEY = os.getenv('KAKAO_REST_API_KEY')
     headers = {'Authorization': f'KakaoAK {API_KEY}'}
 
-    # 복지시설은 키워드 검색으로
     if place_type == 'welfare':
         url = 'https://dapi.kakao.com/v2/local/search/keyword.json'
         params = {
-            'query': '복지관',
+            'query': '사회복지',
             'x': lng,
             'y': lat,
             'radius': radius,
@@ -312,13 +311,12 @@ def nearby_places(request):
         response = requests.get(url, headers=headers, params=params, timeout=5)
         data = response.json()
 
-        WELFARE_KEYWORDS = ['복지관', '복지센터', '복지재단', '장애인', '노인복지', '사회복지', '데이케어', '주간보호']
-
         docs = data.get('documents', [])
         if place_type == 'welfare':
+            EXCLUDE_KEYWORDS = ['대학교', '대학원', '유치원', '학교', '학원', '식당', '카페', '마트']
             docs = [
                 doc for doc in docs
-                if any(kw in doc['place_name'] for kw in WELFARE_KEYWORDS)
+                if not any(kw in doc['place_name'] for kw in EXCLUDE_KEYWORDS)
             ]
 
         results = [
