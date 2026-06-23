@@ -4,6 +4,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 import requests
 import os
+from .models import ChatHistory
 
 
 def call_gms(messages, system_prompt=""):
@@ -57,21 +58,21 @@ def chat(request):
 
     user = request.user
     system_prompt = f"""
-당신은 SafeWay의 AI 안내 도우미예요.
-교통약자(장애인, 노인, 휠체어 사용자, 임산부 등)의 안전한 이동을 돕는 서비스입니다.
+    당신은 SafeWay의 AI 안내 도우미예요.
+    교통약자(장애인, 노인, 휠체어 사용자, 임산부 등)의 안전한 이동을 돕는 서비스입니다.
 
-현재 사용자 정보:
-- 사용자 유형: {user.user_type}
-- 보행 속도: {user.walk_speed} m/s
+    현재 사용자 정보:
+    - 사용자 유형: {user.user_type}
+    - 보행 속도: {user.walk_speed} m/s
 
-다음 역할을 수행해주세요.
-1. 경로 안내 및 주변 시설 안내
-2. 신호등/음향신호기/경사로/엘리베이터 관련 질문 답변
-3. 날씨에 따른 이동 조언
-4. 교통약자 관련 정보 제공
+    다음 역할을 수행해주세요.
+    1. 경로 안내 및 주변 시설 안내
+    2. 신호등/음향신호기/경사로/엘리베이터 관련 질문 답변
+    3. 날씨에 따른 이동 조언
+    4. 교통약자 관련 정보 제공
 
-항상 친절하고 명확하게 한국어로 답변해주세요.
-"""
+    항상 친절하고 명확하게 한국어로 답변해주세요.
+    """
 
     # 대화 히스토리 구성
     messages = []
@@ -90,11 +91,17 @@ def chat(request):
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
+    # 대화 히스토리 저장
+    ChatHistory.objects.create(
+        user=user,
+        message=message,
+        response=response_text,
+    )
+
     return Response({
         'message': response_text,
         'role': 'assistant',
     })
-
 
 # LLM 부적절 표현 필터링
 @api_view(['POST'])
@@ -194,3 +201,19 @@ def admin_filter_monitor(request):
             })
 
     return Response(results)
+
+# 챗봇 히스토리 조회
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def chat_history(request):
+    from .models import ChatHistory
+    history = ChatHistory.objects.filter(user=request.user)[:20]
+    return Response([
+        {
+            'id': h.id,
+            'message': h.message,
+            'response': h.response,
+            'created_at': h.created_at,
+        }
+        for h in history
+    ])
