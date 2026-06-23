@@ -108,6 +108,7 @@ const fetchFavorites = async () => {
 const fetchHistory = async () => {
   try {
     const { data } = await routeAPI.getHistory()
+    console.log('history data:', data)
     history.value = data
   } catch {
     console.error('히스토리 로드 실패')
@@ -392,8 +393,8 @@ const formatDate = (dateStr) => {
         <div v-else class="list-box">
           <div v-for="item in history" :key="item.id" class="list-item">
             <div class="list-info">
-              <span class="list-title">{{ item.origin_name }} → {{ item.dest_name }}</span>
-              <span class="list-sub">{{ formatDistance(item.distance) }} · {{ formatDuration(item.duration) }}</span>
+              <span class="list-title">{{ item.route.origin_name }} → {{ item.route.dest_name }}</span>
+              <span class="list-sub">{{ formatDistance(item.route.distance) }} · {{ formatDuration(item.route.duration) }}</span>
             </div>
           </div>
         </div>
