@@ -33,17 +33,19 @@ const displayName = (nickname, username) => {
 <template>
   <header class="header">
     <div class="header-inner">
-      <RouterLink to="/" class="logo" @click="closeMenu">
-        <img src="@/assets/logo.png" alt="SafeWay 로고" class="logo-img" />
-        SafeWay
-      </RouterLink>
+      <div class="header-left">
+        <RouterLink to="/" class="logo" @click="closeMenu">
+          <img src="@/assets/logo.png" alt="SafeWay 로고" class="logo-img" />
+          SafeWay
+        </RouterLink>
 
-      <!-- 데스크탑 네비 -->
-      <nav class="nav desktop-nav">
-        <RouterLink to="/map">지도</RouterLink>
-        <RouterLink to="/community">커뮤니티</RouterLink>
-        <RouterLink to="/chatbot" v-if="auth.isLoggedIn">AI 챗봇</RouterLink>
-      </nav>
+        <!-- 데스크탑 네비 -->
+        <nav class="nav desktop-nav">
+          <RouterLink to="/map">지도</RouterLink>
+          <RouterLink to="/community">불편신고함</RouterLink>
+          <RouterLink to="/chatbot" v-if="auth.isLoggedIn">안심 도우미</RouterLink>
+        </nav>
+      </div>
 
       <div class="auth-buttons desktop-nav">
         <template v-if="auth.isLoggedIn">
@@ -69,8 +71,8 @@ const displayName = (nickname, username) => {
     <!-- 모바일 메뉴 -->
     <div v-if="menuOpen" class="mobile-menu">
       <RouterLink to="/" @click="closeMenu">🗺 지도</RouterLink>
-      <RouterLink to="/community" @click="closeMenu">📋 커뮤니티</RouterLink>
-      <RouterLink to="/chatbot" v-if="auth.isLoggedIn" @click="closeMenu">🤖 AI 챗봇</RouterLink>
+      <RouterLink to="/community" @click="closeMenu">📋 불편신고함</RouterLink>
+      <RouterLink to="/chatbot" v-if="auth.isLoggedIn" @click="closeMenu">🤖 안심 도우미</RouterLink>
       <hr />
       <template v-if="auth.isLoggedIn">
         <RouterLink to="/admin" v-if="auth.isAdmin" @click="closeMenu">🛠 관리자</RouterLink>
@@ -102,6 +104,11 @@ const displayName = (nickname, username) => {
   align-items: center;
   justify-content: space-between;
 }
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+}
 .logo {
   color: white;
   font-size: calc(var(--base-font-size, 16px) + 4px);
@@ -129,6 +136,9 @@ const displayName = (nickname, username) => {
   color: white;
   text-decoration: none;
   font-size: var(--base-font-size, 16px);
+}
+.nav a {
+  font-weight: 600;
 }
 .username {
   color: white;
