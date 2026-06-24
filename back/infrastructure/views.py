@@ -209,13 +209,14 @@ def seoul_congestion(request):
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
     
-# 주변 엘리베이터 조회
+# 주변 지하철역 엘리베이터 조회 (DB 기반, 현재 서울/대전만 데이터 보유)
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def nearby_elevators(request):
     lat = request.query_params.get('lat')
     lng = request.query_params.get('lng')
-    radius = int(request.query_params.get('radius', 500))
+    radius_m = float(request.query_params.get('radius', 2000))
+    radius = radius_m / 111000  # 미터를 위경도 도(degree) 단위로 환산
 
     if not lat or not lng:
         return Response(
@@ -225,40 +226,38 @@ def nearby_elevators(request):
 
     lat, lng = float(lat), float(lng)
 
-    API_KEY = os.getenv('KAKAO_REST_API_KEY')
-    url = 'https://dapi.kakao.com/v2/local/search/keyword.json'
-    headers = {'Authorization': f'KakaoAK {API_KEY}'}
-    params = {
-        'query': '장애인 엘리베이터',
-        'x': lng,
-        'y': lat,
-        'radius': radius,
-        'sort': 'distance',
-        'size': 15,
-    }
+    elevators = Elevator.objects.filter(
+        lat__range=(lat - radius, lat + radius),
+        lng__range=(lng - radius, lng + radius),
+        is_operating=True,
+    )
 
-    try:
-        response = requests.get(url, headers=headers, params=params, timeout=5)
-        data = response.json()
-        results = [
-            {
-                'name': doc['place_name'],
-                'address': doc['road_address_name'] or doc['address_name'],
-                'lat': float(doc['y']),
-                'lng': float(doc['x']),
-                'distance': doc.get('distance', ''),
+    def format_elevator(e):
+        if e.sido == '서울':
+            # sigungu: 구 이름, install_place: 읍면동명
+            return {
+                'id': e.id,
+                'name': f'{e.building_nm}역',
+                'address': f'서울 {e.sigungu} {e.install_place}',
+                'lat': e.lat,
+                'lng': e.lng,
+                'description': '지하철역 엘리베이터',
             }
-            for doc in data.get('documents', [])
-        ]
-        return Response({
-            'count': len(results),
-            'results': results,
-        })
-    except Exception as e:
-        return Response(
-            {'error': f'엘리베이터 검색 실패: {str(e)}'},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+        # 대전: sigungu에 호기 번호, install_place에 설치 위치(출구), elevator_type에 내/외부
+        return {
+            'id': e.id,
+            'name': f'{e.building_nm} {e.sigungu}호기'.strip(),
+            'address': e.address,
+            'lat': e.lat,
+            'lng': e.lng,
+            'description': f'{e.install_place} ({e.elevator_type}부)' if e.install_place else e.elevator_type,
+        }
+
+    results = [format_elevator(e) for e in elevators]
+    return Response({
+        'count': len(results),
+        'results': results,
+    })
 
 # 주변 병원/복지시설/약국 조회
 @api_view(['GET'])

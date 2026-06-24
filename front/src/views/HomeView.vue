@@ -40,7 +40,7 @@ const categories = [
   { key: 'hospital', label: '병원', icon: '🏥', color: '#4AADE8' },
   { key: 'pharmacy', label: '약국', icon: '💊', color: '#F5C542' },
   { key: 'welfare', label: '복지시설', icon: '🏢', color: '#805ad5' },
-  { key: 'elevator', label: '엘리베이터', icon: '🛗', color: '#2eb872' },
+  { key: 'elevator', label: '엘리베이터', icon: '🛗', color: '#8B5E3C' },
 ]
 const activeCategories = ref(new Set())
 let activeOverlay = null
@@ -554,34 +554,9 @@ const toggleCategory = async (categoryKey) => {
     let places = []
 
     if (categoryKey === 'elevator') {
-      await new Promise((resolve) => {
-        const ps = new window.kakao.maps.services.Places()
-        ps.keywordSearch(
-          '엘리베이터',
-          (result, status) => {
-            if (status === window.kakao.maps.services.Status.OK) {
-              places = result.map(p => ({
-                name: p.place_name,
-                lat: parseFloat(p.y),
-                lng: parseFloat(p.x),
-                address: p.road_address_name || p.address_name,
-                jibun: p.address_name || '',
-                phone: p.phone || '',
-                category: p.category_name || '',
-                place_url: p.place_url || '',
-                distance: p.distance || '',
-              }))
-            }
-            resolve()
-          },
-          {
-            location: new window.kakao.maps.LatLng(lat, lng),
-            radius: 1000,
-            size: 15,
-          }
-        )
-      })
-} else if (categoryKey === 'support_center') {
+      const { data } = await infraAPI.getElevators(lat, lng)
+      places = data.results || []
+    } else if (categoryKey === 'support_center') {
       const { data } = await infraAPI.getSupportCenters(lat, lng)
       places = Array.isArray(data) ? data : data.results || []
     } else {
