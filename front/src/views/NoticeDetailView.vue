@@ -38,7 +38,7 @@ onMounted(fetchNotice)
 <template>
   <div class="notice-detail-page">
     <div class="notice-detail-inner">
-      <button @click="router.push('/community/notices')" class="back-btn">← 목록으로</button>
+      <button @click="router.push('/community')" class="back-btn">← 목록으로</button>
 
       <div v-if="loading" class="loading">불러오는 중...</div>
 
