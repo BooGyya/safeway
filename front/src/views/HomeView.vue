@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { routeAPI } from '@/api/routes'
 import { infraAPI } from '@/api/infra'
 import { useAuthStore } from '@/stores/auth'
@@ -100,6 +100,14 @@ const routeDescriptions = {
   main_road: '대로 위주의 넓은 도로 경로',
   weather: '현재 날씨를 반영한 경로',
 }
+const currentNearby = computed(() => {
+  if (!routeResult.value) return null
+  if (routeResult.value.routes) {
+    return routeResult.value.routes[activeRouteTab.value]?.nearby || null
+  }
+  return routeResult.value.nearby || null
+})
+
 const selectedDetailFacility = ref(null)
 let focusedMarker = null
 
@@ -311,7 +319,7 @@ const drawWalkRoute = (data, tabKey) => {
   path.forEach(p => bounds.extend(p))
   map.setBounds(bounds)
 
-  if (data.nearby) drawNearbyMarkers(data.nearby)
+  if (routeData.nearby) drawNearbyMarkers(routeData.nearby)
 }
 
 const switchRouteTab = (tabKey) => {
@@ -342,8 +350,24 @@ const fetchNearbyFacilities = async (route) => {
   } catch { /* 무시 */ }
 }
 
-const addOverlayMarkers = (items, color, icon, label) => {
-  const markerImage = createCategoryMarkerImage(color)
+const createEmojiMarkerImage = (emoji, size = 28) => {
+  const canvas = document.createElement('canvas')
+  canvas.width = size
+  canvas.height = size
+  const ctx = canvas.getContext('2d')
+  ctx.font = `${size - 4}px serif`
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(emoji, size / 2, size / 2)
+  return new window.kakao.maps.MarkerImage(
+    canvas.toDataURL(),
+    new window.kakao.maps.Size(size, size),
+    { offset: new window.kakao.maps.Point(size / 2, size / 2) }
+  )
+}
+
+const addOverlayMarkers = (items, color, icon, label, useEmoji = false) => {
+  const markerImage = useEmoji ? createEmojiMarkerImage(icon, 30) : createCategoryMarkerImage(color)
   items?.forEach(item => {
     if (!item.lat || !item.lng) return
     const position = new window.kakao.maps.LatLng(item.lat, item.lng)
@@ -375,7 +399,7 @@ const addOverlayMarkers = (items, color, icon, label) => {
 }
 
 const drawNearbyMarkers = (nearby) => {
-  addOverlayMarkers(nearby.traffic_lights?.map(tl => ({ ...tl, name: tl.road_nm || '신호등' })), '#2eb872', '🚦', '신호등')
+  addOverlayMarkers(nearby.traffic_lights?.map(tl => ({ ...tl, name: tl.description || tl.road_nm || '신호등' })), '#2eb872', '🚦', '신호등', true)
   addOverlayMarkers(nearby.hospitals, '#4AADE8', '🏥', '병원')
   addOverlayMarkers(nearby.pharmacies, '#F5C542', '💊', '약국')
   addOverlayMarkers(nearby.welfare, '#805ad5', '🏢', '복지시설')
@@ -393,14 +417,14 @@ const loadDangerZones = async () => {
   dangerZoneMarkers = []
   try {
     const { data } = await communityAPI.getDangerZones()
-    const redMarkerImage = createCategoryMarkerImage('#e53e3e')
     data.forEach(dz => {
       if (!dz.lat || !dz.lng) return
       const position = new window.kakao.maps.LatLng(dz.lat, dz.lng)
+      const markerImage = createCategoryMarkerImage('#e53e3e')
       const marker = new window.kakao.maps.Marker({
         position, map,
         title: dz.title,
-        image: redMarkerImage,
+        image: markerImage,
         zIndex: 50,
       })
       const overlay = createPlaceOverlay(
@@ -442,16 +466,21 @@ const createPlaceOverlay = (place, category, position) => {
   const content = document.createElement('div')
   content.className = 'marker-overlay'
   content.innerHTML = `
-    <div class="marker-overlay-inner" style="border-top: 3px solid ${category.color}">
+    <div class="marker-overlay-inner" style="border-left: 4px solid ${category.color}">
       <button class="marker-overlay-close">✕</button>
-      <strong class="marker-overlay-name">${place.name}</strong>
-      ${place.category ? `<p class="marker-overlay-category">${place.category}</p>` : `<span class="marker-overlay-badge" style="background:${category.color}">${category.icon} ${category.label}</span>`}
-      ${place.address ? `<p class="marker-overlay-row"><span class="marker-overlay-icon">📍</span> ${place.address}</p>` : ''}
-      ${place.jibun && place.jibun !== place.address ? `<p class="marker-overlay-jibun">(지번) ${place.jibun}</p>` : ''}
-      ${place.phone ? `<p class="marker-overlay-row"><span class="marker-overlay-icon">📞</span> <a href="tel:${place.phone}" class="marker-overlay-phone">${place.phone}</a></p>` : ''}
-      ${place.place_url ? `<a href="${place.place_url}" target="_blank" rel="noopener" class="marker-overlay-detail-btn">영업시간·메뉴·리뷰 등 상세정보 보기 →</a>` : ''}
+      <div class="marker-overlay-head">
+        <span class="marker-overlay-icon-big">${category.icon}</span>
+        <div class="marker-overlay-head-text">
+          <strong class="marker-overlay-name">${place.name}</strong>
+          <span class="marker-overlay-label" style="color:${category.color}">${category.label}</span>
+        </div>
+      </div>
+      ${place.address ? `<p class="marker-overlay-row">📍 ${place.address}</p>` : ''}
+      ${place.phone ? `<p class="marker-overlay-row">📞 <a href="tel:${place.phone}" class="marker-overlay-phone">${place.phone}</a></p>` : ''}
+      ${place.description ? `<p class="marker-overlay-row">📝 ${place.description}</p>` : ''}
+      ${place.place_url ? `<a href="${place.place_url}" target="_blank" rel="noopener" class="marker-overlay-detail-btn">상세정보 보기 →</a>` : ''}
     </div>
-    <div class="marker-overlay-arrow" style="border-top-color:white"></div>
+    <div class="marker-overlay-arrow"></div>
   `
 
   content.addEventListener('click', (e) => {
@@ -477,7 +506,7 @@ const createPlaceOverlay = (place, category, position) => {
     content,
     position,
     yAnchor: 1.15,
-    zIndex: 30,
+    zIndex: 999,
     clickable: true,
   })
 
@@ -1028,7 +1057,7 @@ const formatSteps = (meters) => {
                 <span class="route-card-steps">{{ formatSteps(routeResult.routes[tab.key]?.distance) }} 걸음</span>
               </div>
               <div class="route-card-meta">
-                횡단보도 {{ routeResult.nearby?.traffic_lights?.length || 0 }}회
+                횡단보도 {{ routeResult.routes[tab.key]?.nearby?.traffic_lights?.length || 0 }}회
               </div>
               <div v-if="tab.key === 'weather' && routeResult.routes.weather?.message" class="route-card-weather-msg">
                 ⚠️ {{ routeResult.routes.weather.message }}
@@ -1053,9 +1082,9 @@ const formatSteps = (meters) => {
           </template>
 
           <!-- 위험구간 경고 -->
-          <div v-if="routeResult.nearby?.danger_zones?.length" class="danger-warning">
-            <div class="danger-warning-title">⚠️ 경로 주변 위험구간 {{ routeResult.nearby.danger_zones.length }}곳</div>
-            <div v-for="dz in routeResult.nearby.danger_zones" :key="dz.id" class="danger-zone-item">
+          <div v-if="currentNearby?.danger_zones?.length" class="danger-warning">
+            <div class="danger-warning-title">⚠️ 경로 주변 위험구간 {{ currentNearby.danger_zones.length }}곳</div>
+            <div v-for="dz in currentNearby.danger_zones" :key="dz.id" class="danger-zone-item">
               <span class="danger-zone-icon">{{ { danger: '⚠️', obstacle: '🚧', broken: '🔨', construction: '🏗️' }[dz.category] || '⚠️' }}</span>
               <div class="danger-zone-info">
                 <span class="danger-zone-name">{{ dz.title }}</span>
@@ -1065,47 +1094,13 @@ const formatSteps = (meters) => {
           </div>
 
           <!-- 주변 시설 요약 -->
-          <div v-if="routeResult.nearby" class="nearby-summary">
-            <span>🚦 {{ routeResult.nearby.traffic_lights?.length || 0 }}</span>
-            <span>🏥 {{ routeResult.nearby.hospitals?.length || 0 }}</span>
-            <span>💊 {{ routeResult.nearby.pharmacies?.length || 0 }}</span>
-            <span>🏢 {{ routeResult.nearby.welfare?.length || 0 }}</span>
+          <div v-if="currentNearby" class="nearby-summary">
+            <span>🚦 {{ currentNearby.traffic_lights?.length || 0 }}</span>
+            <span>🏥 {{ currentNearby.hospitals?.length || 0 }}</span>
+            <span>💊 {{ currentNearby.pharmacies?.length || 0 }}</span>
+            <span>🏢 {{ currentNearby.welfare?.length || 0 }}</span>
           </div>
 
-          <!-- 상세보기 -->
-          <div v-if="showRouteDetail && routeResult.nearby" class="route-detail-section">
-            <div v-if="routeResult.nearby.hospitals?.length" class="detail-group">
-              <h4>🏥 병원</h4>
-              <div v-for="(h, i) in routeResult.nearby.hospitals" :key="'h'+i" class="detail-item">
-                <span class="detail-item-name">{{ h.name }}</span>
-                <span v-if="h.phone" class="detail-item-sub">{{ h.phone }}</span>
-              </div>
-            </div>
-            <div v-if="routeResult.nearby.pharmacies?.length" class="detail-group">
-              <h4>💊 약국</h4>
-              <div v-for="(p, i) in routeResult.nearby.pharmacies" :key="'p'+i" class="detail-item">
-                <span class="detail-item-name">{{ p.name }}</span>
-                <span v-if="p.phone" class="detail-item-sub">{{ p.phone }}</span>
-              </div>
-            </div>
-            <div v-if="routeResult.nearby.welfare?.length" class="detail-group">
-              <h4>🏢 복지시설</h4>
-              <div v-for="(w, i) in routeResult.nearby.welfare" :key="'w'+i" class="detail-item">
-                <span class="detail-item-name">{{ w.name }}</span>
-                <span v-if="w.phone" class="detail-item-sub">{{ w.phone }}</span>
-              </div>
-            </div>
-            <div v-if="routeResult.nearby.traffic_lights?.length" class="detail-group">
-              <h4>🚦 신호등</h4>
-              <div v-for="tl in routeResult.nearby.traffic_lights" :key="tl.id" class="detail-item">
-                <span class="detail-item-name">{{ tl.road_nm }}</span>
-                <span class="detail-badges">
-                  <span v-if="tl.has_audio" class="audio-badge">음향신호기</span>
-                  <span v-if="tl.has_remndr" class="remndr-badge">잔여시간</span>
-                </span>
-              </div>
-            </div>
-          </div>
 
           <button v-if="auth.isLoggedIn" class="favorite-btn" @click="addFavorite">
             ⭐ 즐겨찾기 추가
@@ -1253,6 +1248,55 @@ const formatSteps = (meters) => {
       </div>
 
       <div ref="mapContainer" class="map"></div>
+
+      <!-- 경로 상세 슬라이드 패널 -->
+      <Transition name="slide-panel">
+        <div v-if="showRouteDetail && currentNearby" class="detail-slide-panel">
+          <div class="detail-slide-header">
+            <h3>{{ routeResult?.routes?.[activeRouteTab]?.label || '경로' }} 상세</h3>
+            <button class="detail-slide-close" @click="showRouteDetail = false">✕</button>
+          </div>
+          <div class="detail-slide-summary">
+            <span v-if="routeResult?.routes">
+              {{ formatDuration(routeResult.routes[activeRouteTab]?.duration) }} · {{ formatDistance(routeResult.routes[activeRouteTab]?.distance) }} · {{ formatSteps(routeResult.routes[activeRouteTab]?.distance) }} 걸음
+            </span>
+            <span>횡단보도 {{ currentNearby.traffic_lights?.length || 0 }}회</span>
+          </div>
+          <div class="detail-slide-body">
+            <div v-if="currentNearby.traffic_lights?.length" class="detail-group">
+              <h4>🚦 건너야 하는 신호등</h4>
+              <div v-for="(tl, i) in currentNearby.traffic_lights" :key="'tl'+i" class="detail-item">
+                <span class="detail-item-name">{{ tl.description || tl.road_nm }}</span>
+                <span class="detail-badges">
+                  <span v-if="tl.has_audio" class="audio-badge">음향</span>
+                  <span v-if="tl.has_remndr" class="remndr-badge">잔여</span>
+                </span>
+              </div>
+            </div>
+            <div v-if="currentNearby.hospitals?.length" class="detail-group">
+              <h4>🏥 병원</h4>
+              <div v-for="(h, i) in currentNearby.hospitals" :key="'h'+i" class="detail-item">
+                <span class="detail-item-name">{{ h.name }}</span>
+                <span v-if="h.phone" class="detail-item-sub">{{ h.phone }}</span>
+              </div>
+            </div>
+            <div v-if="currentNearby.pharmacies?.length" class="detail-group">
+              <h4>💊 약국</h4>
+              <div v-for="(p, i) in currentNearby.pharmacies" :key="'p'+i" class="detail-item">
+                <span class="detail-item-name">{{ p.name }}</span>
+                <span v-if="p.phone" class="detail-item-sub">{{ p.phone }}</span>
+              </div>
+            </div>
+            <div v-if="currentNearby.welfare?.length" class="detail-group">
+              <h4>🏢 복지시설</h4>
+              <div v-for="(w, i) in currentNearby.welfare" :key="'w'+i" class="detail-item">
+                <span class="detail-item-name">{{ w.name }}</span>
+                <span v-if="w.phone" class="detail-item-sub">{{ w.phone }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Transition>
 
       <!-- SOS 버튼 (오른쪽 상단) -->
       <button @click="sendSOS" class="sos-btn" title="SOS">SOS</button>
@@ -2031,12 +2075,13 @@ p.info-jibun {
 .detail-item {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  padding: 6px 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
   background: white;
-  border-radius: 6px;
-  font-size: calc(var(--base-font-size, 16px) - 3px);
+  border-radius: 8px;
+  font-size: calc(var(--base-font-size, 16px) - 2px);
   transition: all 0.15s;
+  gap: 10px;
 }
 .detail-item.clickable {
   cursor: pointer;
@@ -2061,25 +2106,36 @@ p.info-jibun {
   color: #888;
   font-size: calc(var(--base-font-size, 16px) - 4px);
 }
+.detail-item-name {
+  flex: 1;
+  min-width: 0;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+  font-size: calc(var(--base-font-size, 16px) - 3px);
+  line-height: 1.4;
+}
 .detail-badges {
   display: flex;
   gap: 4px;
+  flex-shrink: 0;
 }
 .audio-badge {
   background: #2eb872;
   color: white;
-  padding: 1px 6px;
-  border-radius: 8px;
-  font-size: calc(var(--base-font-size, 16px) - 5px);
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: calc(var(--base-font-size, 16px) - 4px);
   font-weight: 600;
+  white-space: nowrap;
 }
 .remndr-badge {
   background: #3366FF;
   color: white;
-  padding: 1px 6px;
-  border-radius: 8px;
-  font-size: calc(var(--base-font-size, 16px) - 5px);
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: calc(var(--base-font-size, 16px) - 4px);
   font-weight: 600;
+  white-space: nowrap;
 }
 
 
@@ -2129,6 +2185,87 @@ p.info-jibun {
 }
 .chip-label {
   font-weight: 600;
+}
+
+/* 경로 상세 슬라이드 패널 */
+.detail-slide-panel {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 360px;
+  height: 100%;
+  background: white;
+  z-index: 20;
+  box-shadow: 4px 0 16px rgba(0,0,0,0.15);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.detail-slide-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #eee;
+  flex-shrink: 0;
+}
+.detail-slide-header h3 {
+  margin: 0;
+  font-size: calc(var(--base-font-size, 16px) + 1px);
+  font-weight: 700;
+  color: #222;
+}
+.detail-slide-close {
+  background: #f0f0f0;
+  border: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  font-size: 16px;
+  color: #666;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.detail-slide-close:hover {
+  background: #ddd;
+}
+.detail-slide-summary {
+  padding: 12px 20px;
+  background: #f8f9fa;
+  font-size: calc(var(--base-font-size, 16px) - 3px);
+  color: #555;
+  display: flex;
+  gap: 12px;
+  flex-shrink: 0;
+  border-bottom: 1px solid #eee;
+}
+.detail-slide-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.slide-panel-enter-active {
+  transition: transform 0.3s ease;
+}
+.slide-panel-leave-active {
+  transition: none;
+}
+.slide-panel-enter-from {
+  transform: translateX(-100%);
+}
+.slide-panel-leave-to {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .detail-slide-panel {
+    width: 100%;
+  }
 }
 
 /* 지도 */
@@ -2191,28 +2328,29 @@ p.info-jibun {
 .marker-overlay-inner {
   position: relative;
   background: white;
-  border-radius: 12px;
-  padding: 12px 28px 12px 14px;
-  min-width: 180px;
-  max-width: 260px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+  border-radius: 14px;
+  padding: 14px 16px;
+  width: 280px;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.2);
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  line-height: 1.4;
-  font-family: 'Pretendard', -apple-system, sans-serif;
+  gap: 8px;
+  line-height: 1.5;
+  font-family: 'Poppins', 'Noto Sans KR', sans-serif;
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 .marker-overlay-close {
   position: absolute;
-  top: 6px;
-  right: 6px;
-  background: none;
+  top: 8px;
+  right: 8px;
+  background: #f5f5f5;
   border: none;
   font-size: 14px;
-  color: #bbb;
+  color: #888;
   cursor: pointer;
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2221,19 +2359,24 @@ p.info-jibun {
   line-height: 1;
 }
 .marker-overlay-close:hover {
-  background: #f0f0f0;
-  color: #666;
+  background: #e0e0e0;
+  color: #333;
 }
-.marker-overlay-badge {
-  display: inline-flex;
+.marker-overlay-head {
+  display: flex;
   align-items: center;
-  align-self: flex-start;
-  gap: 3px;
-  padding: 2px 8px;
-  border-radius: 10px;
-  color: white;
-  font-size: 11px;
-  font-weight: 600;
+  gap: 10px;
+  padding-right: 20px;
+}
+.marker-overlay-icon-big {
+  font-size: 28px;
+  flex-shrink: 0;
+}
+.marker-overlay-head-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
 }
 .marker-overlay-name {
   display: block;
@@ -2241,41 +2384,42 @@ p.info-jibun {
   font-weight: 700;
   color: #222;
   word-break: keep-all;
+  overflow-wrap: break-word;
+  white-space: normal;
+  line-height: 1.4;
+}
+.marker-overlay-label {
+  font-size: 12px;
+  font-weight: 600;
 }
 .marker-overlay-row {
   margin: 0;
   font-size: 12px;
-  color: #666;
-}
-.marker-overlay-inner .marker-overlay-category {
-  margin: 0 !important;
-  font-size: 11px !important;
-  color: #999 !important;
-  line-height: 1.3;
-}
-.marker-overlay-inner .marker-overlay-jibun {
-  margin: -1px 0 0 18px !important;
-  font-size: 10px !important;
-  color: #bbb !important;
+  color: #555;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+  white-space: normal;
+  line-height: 1.4;
 }
 .marker-overlay-phone {
   color: #2eb872;
   text-decoration: none;
+  font-weight: 500;
 }
 .marker-overlay-phone:hover {
   text-decoration: underline;
 }
 .marker-overlay-detail-btn {
   display: block;
-  margin-top: 4px;
-  padding: 6px 8px;
+  margin-top: 2px;
+  padding: 8px 10px;
   background: #fee500;
   color: #3c1e1e;
   text-decoration: none;
-  font-weight: 600;
-  font-size: 11px;
+  font-weight: 700;
+  font-size: 13px;
   text-align: center;
-  border-radius: 6px;
+  border-radius: 8px;
 }
 .marker-overlay-detail-btn:hover {
   background: #fdd835;
@@ -2283,11 +2427,11 @@ p.info-jibun {
 .marker-overlay-arrow {
   width: 0;
   height: 0;
-  border-left: 8px solid transparent;
-  border-right: 8px solid transparent;
-  border-top: 10px solid white;
+  border-left: 10px solid transparent;
+  border-right: 10px solid transparent;
+  border-top: 12px solid white;
   margin: 0 auto;
-  filter: drop-shadow(0 2px 2px rgba(0,0,0,0.1));
+  filter: drop-shadow(0 2px 3px rgba(0,0,0,0.12));
 }
 
 /* 출발/도착 마커 라벨 */
@@ -2310,20 +2454,17 @@ p.info-jibun {
 
 @media (max-width: 768px) {
   .marker-overlay-inner {
-    min-width: 160px;
-    max-width: 220px;
-    padding: 10px 12px;
-    gap: 4px;
+    width: 240px;
+    padding: 12px 14px;
   }
-  .marker-overlay-badge {
-    font-size: 10px;
-    padding: 2px 6px;
+  .marker-overlay-icon-big {
+    font-size: 22px;
   }
   .marker-overlay-name {
-    font-size: 13px;
+    font-size: 14px;
   }
   .marker-overlay-row {
-    font-size: 11px;
+    font-size: 12px;
   }
   .route-marker-label {
     font-size: 11px;

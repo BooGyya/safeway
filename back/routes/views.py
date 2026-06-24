@@ -50,12 +50,13 @@ def get_tmap_route(origin_lat, origin_lng, dest_lat, dest_lng, speed=1.0, search
 
 
 def parse_tmap_route(tmap_data):
-    """TMAP 응답에서 waypoints, distance, duration 추출"""
+    """TMAP 응답에서 waypoints, distance, duration, crosswalks 추출"""
     waypoints = []
+    crosswalks = []
     distance = 0
     duration = 0
     if not tmap_data or not tmap_data.get('features'):
-        return None, 0, 0
+        return None, 0, 0, []
     for feature in tmap_data['features']:
         geometry = feature.get('geometry', {})
         properties = feature.get('properties', {})
@@ -66,9 +67,18 @@ def parse_tmap_route(tmap_data):
         if geometry.get('type') == 'LineString':
             for coord in geometry.get('coordinates', []):
                 waypoints.append({'lat': coord[1], 'lng': coord[0]})
+        if geometry.get('type') == 'Point':
+            turn_type = properties.get('turnType', 0)
+            if turn_type in [211, 212, 213, 214, 215, 218]:
+                coord = geometry['coordinates']
+                crosswalks.append({
+                    'lat': coord[1],
+                    'lng': coord[0],
+                    'description': properties.get('description', '횡단보도'),
+                })
     if not waypoints:
-        return None, 0, 0
-    return waypoints, distance, duration
+        return None, 0, 0, []
+    return waypoints, distance, duration, crosswalks
 
 
 def get_tmap_transit_route(origin_lat, origin_lng, dest_lat, dest_lng):
@@ -161,8 +171,8 @@ def get_weather_info(lat, lng):
         return None
 
 
-def get_nearby(waypoints):
-    """경로 주변 시설 정보 수집 (경로 전체를 따라 탐색)"""
+def get_nearby(waypoints, crosswalks=None):
+    """경로 주변 시설 정보 수집"""
     from community.models import Post
 
     nearby = {
@@ -175,41 +185,41 @@ def get_nearby(waypoints):
     if not waypoints:
         return nearby
 
-    # 경로 전체를 따라 샘플링 (경로 길이에 비례)
-    total = len(waypoints)
-    step = max(1, total // 30)
-    sampled = waypoints[::step]
-    if waypoints[-1] not in sampled:
-        sampled.append(waypoints[-1])
-
-    # 신호등: 경로를 따라 수집 (제한 없음)
-    LIGHT_RADIUS = 0.002  # ~200m
+    # 신호등: 건너야 하는 횡단보도 위치에서 가장 가까운 DB 신호등 매칭
     seen_lights = set()
-    for wp in sampled:
-        lat, lng = wp['lat'], wp['lng']
-        lights = TrafficLight.objects.filter(
-            lat__range=(lat - LIGHT_RADIUS, lat + LIGHT_RADIUS),
-            lng__range=(lng - LIGHT_RADIUS, lng + LIGHT_RADIUS),
-        )
-        for l in lights:
-            if l.id not in seen_lights:
-                seen_lights.add(l.id)
-                nearby['traffic_lights'].append({
-                    'id': l.id,
-                    'road_nm': l.road_nm,
-                    'lat': l.lat,
-                    'lng': l.lng,
-                    'has_audio': l.has_audio,
-                    'has_remndr': l.has_remndr,
-                })
+    if crosswalks:
+        for cw in crosswalks:
+            lat, lng = cw['lat'], cw['lng']
+            MATCH_RADIUS = 0.0005  # ~50m
+            lights = TrafficLight.objects.filter(
+                lat__range=(lat - MATCH_RADIUS, lat + MATCH_RADIUS),
+                lng__range=(lng - MATCH_RADIUS, lng + MATCH_RADIUS),
+            )
+            if lights.exists():
+                closest = min(lights, key=lambda l: abs(l.lat - lat) + abs(l.lng - lng))
+                if closest.id not in seen_lights:
+                    seen_lights.add(closest.id)
+                    nearby['traffic_lights'].append({
+                        'id': closest.id,
+                        'road_nm': closest.road_nm,
+                        'description': cw.get('description', ''),
+                        'lat': closest.lat,
+                        'lng': closest.lng,
+                        'has_audio': closest.has_audio,
+                        'has_remndr': closest.has_remndr,
+                    })
 
-    # 병원/약국/복지시설: 경로 기준 100m 반경 카카오 API
+    # 병원/약국: 경로를 따라 300m 반경 카카오 API
     API_KEY = os.getenv('KAKAO_REST_API_KEY')
     kakao_url = 'https://dapi.kakao.com/v2/local/search/category.json'
     kakao_headers = {'Authorization': f'KakaoAK {API_KEY}'}
 
-    # 경로의 출발/중간/도착 3개 지점에서 검색
-    check_points = [waypoints[0], waypoints[len(waypoints)//2], waypoints[-1]]
+    total = len(waypoints)
+    step = max(1, total // 5)
+    check_points = waypoints[::step]
+    if waypoints[-1] not in check_points:
+        check_points.append(waypoints[-1])
+
     category_map = {
         'hospitals': 'HP8',
         'pharmacies': 'PM9',
@@ -222,7 +232,7 @@ def get_nearby(waypoints):
                 resp = requests.get(kakao_url, headers=kakao_headers, params={
                     'category_group_code': cat_code,
                     'x': cp['lng'], 'y': cp['lat'],
-                    'radius': 100, 'sort': 'distance', 'size': 5,
+                    'radius': 300, 'sort': 'distance', 'size': 5,
                 }, timeout=3)
                 for doc in resp.json().get('documents', []):
                     place_id = doc['id']
@@ -240,12 +250,13 @@ def get_nearby(waypoints):
             except Exception:
                 pass
 
-    # 복지시설: DB에서 경로 100m 반경
+    # 복지시설: DB + 카카오 API 병행
+    WELFARE_RADIUS = 0.005  # ~500m
     seen_centers = set()
     for cp in check_points:
         centers = SupportCenter.objects.filter(
-            lat__range=(cp['lat'] - 0.001, cp['lat'] + 0.001),
-            lng__range=(cp['lng'] - 0.001, cp['lng'] + 0.001),
+            lat__range=(cp['lat'] - WELFARE_RADIUS, cp['lat'] + WELFARE_RADIUS),
+            lng__range=(cp['lng'] - WELFARE_RADIUS, cp['lng'] + WELFARE_RADIUS),
             is_operating=True,
         )
         for c in centers:
@@ -254,11 +265,36 @@ def get_nearby(waypoints):
                 nearby['welfare'].append({
                     'id': c.id,
                     'name': c.name,
-                    'address': c.address if hasattr(c, 'address') else '',
+                    'address': c.address or '',
                     'lat': c.lat,
                     'lng': c.lng,
                     'phone': c.phone,
                 })
+    # 카카오 키워드 검색으로 복지시설/복지관 검색
+    kakao_keyword_url = 'https://dapi.kakao.com/v2/local/search/keyword.json'
+    welfare_seen = set()
+    for keyword in ['복지관', '복지센터', '장애인복지']:
+        for cp in check_points[:2]:
+            try:
+                resp = requests.get(kakao_keyword_url, headers=kakao_headers, params={
+                    'query': keyword,
+                    'x': cp['lng'], 'y': cp['lat'],
+                    'radius': 500, 'sort': 'distance', 'size': 3,
+                }, timeout=3)
+                for doc in resp.json().get('documents', []):
+                    pid = doc['id']
+                    if pid not in welfare_seen:
+                        welfare_seen.add(pid)
+                        nearby['welfare'].append({
+                            'name': doc['place_name'],
+                            'address': doc['road_address_name'] or doc['address_name'],
+                            'lat': float(doc['y']),
+                            'lng': float(doc['x']),
+                            'phone': doc.get('phone', ''),
+                            'place_url': doc.get('place_url', ''),
+                        })
+            except Exception:
+                pass
 
     # 위험구간
     lats = [wp['lat'] for wp in waypoints]
@@ -328,29 +364,22 @@ def search_route(request):
 
     # ===== 도보 경로 4가지 탐색 =====
     if transport_type == 'walk':
-        # 1. 추천 경로
-        wp1, d1, dur1 = parse_tmap_route(
-            get_tmap_route(origin_lat, origin_lng, dest_lat, dest_lng, speed=user_speed, search_option='0')
-        )
-        # 2. 계단회피 경로
-        wp2, d2, dur2 = parse_tmap_route(
-            get_tmap_route(origin_lat, origin_lng, dest_lat, dest_lng, speed=user_speed, search_option='10')
-        )
-        # 3. 큰길우선 경로
-        wp3, d3, dur3 = parse_tmap_route(
-            get_tmap_route(origin_lat, origin_lng, dest_lat, dest_lng, speed=user_speed, search_option='4')
-        )
+        tmap1 = get_tmap_route(origin_lat, origin_lng, dest_lat, dest_lng, speed=user_speed, search_option='0')
+        tmap2 = get_tmap_route(origin_lat, origin_lng, dest_lat, dest_lng, speed=user_speed, search_option='10')
+        tmap3 = get_tmap_route(origin_lat, origin_lng, dest_lat, dest_lng, speed=user_speed, search_option='4')
+
+        wp1, d1, dur1, cw1 = parse_tmap_route(tmap1)
+        wp2, d2, dur2, cw2 = parse_tmap_route(tmap2)
+        wp3, d3, dur3, cw3 = parse_tmap_route(tmap3)
 
         if not wp1:
             return Response({'error': '도보 경로를 찾을 수 없습니다.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 보행속도로 duration 재계산
         if user_speed > 0:
             dur1 = int(d1 / user_speed) if d1 else dur1
             dur2 = int(d2 / user_speed) if d2 else dur2
             dur3 = int(d3 / user_speed) if d3 else dur3
 
-        # 4. 날씨 추천 경로 (악천후면 소요시간 20% 추가)
         weather_msg = None
         if is_bad_weather:
             weather_msg = weather_messages.get(weather['weather'], '날씨가 좋지 않아요. 이동 시 주의하세요.')
@@ -358,9 +387,11 @@ def search_route(request):
         else:
             dur_weather = dur1
 
-        # 추천 경로 기준으로 DB 저장
         safety_score = calculate_safety_score(wp1, user_type)
-        nearby = get_nearby(wp1)
+
+        nearby1 = get_nearby(wp1, cw1)
+        nearby2 = get_nearby(wp2 or wp1, cw2 or cw1)
+        nearby3 = get_nearby(wp3 or wp1, cw3 or cw1)
 
         if request.user.is_authenticated:
             existing = RouteHistory.objects.filter(
@@ -401,6 +432,7 @@ def search_route(request):
                     'distance': d1,
                     'duration': dur1,
                     'safety_score': safety_score,
+                    'nearby': nearby1,
                 },
                 'stair_free': {
                     'label': '계단회피',
@@ -408,6 +440,7 @@ def search_route(request):
                     'distance': d2 or d1,
                     'duration': dur2 or dur1,
                     'safety_score': calculate_safety_score(wp2 or wp1, user_type),
+                    'nearby': nearby2,
                 },
                 'main_road': {
                     'label': '큰길우선',
@@ -415,6 +448,7 @@ def search_route(request):
                     'distance': d3 or d1,
                     'duration': dur3 or dur1,
                     'safety_score': calculate_safety_score(wp3 or wp1, user_type),
+                    'nearby': nearby3,
                 },
                 'weather': {
                     'label': '날씨추천',
@@ -424,10 +458,10 @@ def search_route(request):
                     'safety_score': safety_score,
                     'weather_applied': is_bad_weather,
                     'message': weather_msg,
+                    'nearby': nearby1,
                 },
             },
             'weather': weather,
-            'nearby': nearby,
             'transport_type': transport_type,
         }, status=status.HTTP_201_CREATED)
 
