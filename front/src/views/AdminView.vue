@@ -260,7 +260,7 @@ onMounted(() => {
                     :class="['danger-apply-btn', { applied: post.is_trusted }]"
                     @click="toggleDangerApply(post)"
                   >
-                    {{ post.is_trusted ? '적용됨' : '적용' }}
+                    {{ post.is_trusted ? '적용' : '미적용' }}
                   </button>
                   <span v-else class="no-location">-</span>
                 </td>
@@ -498,8 +498,8 @@ th, td {
 }
 .danger-apply-btn {
   padding: 4px 12px;
-  background: #fff3e0;
-  color: #e65100;
+  background: #f0f0f0;
+  color: #888;
   border: none;
   border-radius: 6px;
   cursor: pointer;
@@ -507,8 +507,8 @@ th, td {
   font-weight: 600;
 }
 .danger-apply-btn.applied {
-  background: #e53e3e;
-  color: white;
+  background: #fff3e0;
+  color: #e65100;
 }
 .category-label {
   font-size: calc(var(--base-font-size, 16px) - 4px);
