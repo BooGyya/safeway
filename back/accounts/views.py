@@ -75,6 +75,14 @@ def profile(request):
         serializer = UserSerializer(request.user)
         return Response(serializer.data)
     
+    # 별명 빈값 체크
+    nickname = request.data.get('nickname')
+    if nickname is not None and str(nickname).strip() == '':
+        return Response(
+            {'error': '별명은 빈값으로 설정할 수 없습니다.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
     serializer = UserSerializer(
         request.user,
         data=request.data,
@@ -225,11 +233,16 @@ def kakao_callback(request):
     refresh = RefreshToken.for_user(user)
     
     frontend_url = settings.FRONTEND_URL
+    
+    # 신규 가입이고 별명이 없으면 별명 입력 페이지로
+    needs_nickname = created and not user.nickname
+    
     return HttpResponseRedirect(
         f"{frontend_url}/kakao/callback?"
         f"access={str(refresh.access_token)}"
         f"&refresh={str(refresh)}"
         f"&created={str(created).lower()}"
+        f"&needs_nickname={str(needs_nickname).lower()}"
     )
 
 # 마이페이지
