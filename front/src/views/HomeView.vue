@@ -638,16 +638,22 @@ const addFavorite = async () => {
   const nickname = prompt('즐겨찾기 이름을 입력하세요 (예: 집 → 회사)')
   if (!nickname) return
   try {
-    const routeId = routeResult.value.route?.id
+    let routeId = routeResult.value.route?.id
     if (!routeId) {
-      alert('도보 경로는 즐겨찾기가 자동 저장됩니다.')
+      const { data: historyData } = await routeAPI.getHistory()
+      if (historyData.length > 0) {
+        routeId = historyData[0].route?.id
+      }
+    }
+    if (!routeId) {
+      alert('경로 정보를 찾을 수 없습니다.')
       return
     }
     await routeAPI.addFavorite({
       route_id: routeId,
       nickname
     })
-    alert('즐겨찾기에 추가되었습니다! ⭐')
+    alert('즐겨찾기에 추가되었습니다!')
   } catch {
     alert('즐겨찾기 추가에 실패했습니다.')
   }
@@ -1264,12 +1270,12 @@ const formatSteps = (meters) => {
           </div>
           <div class="detail-slide-body">
             <div v-if="currentNearby.traffic_lights?.length" class="detail-group">
-              <h4>🚦 건너야 하는 신호등</h4>
-              <div v-for="(tl, i) in currentNearby.traffic_lights" :key="'tl'+i" class="detail-item">
+              <h4>🚦 상세 경로</h4>
+              <div v-for="(tl, i) in currentNearby.traffic_lights" :key="'tl'+i" class="detail-item detail-item-vertical" :class="{ 'detail-item-border': i > 0 }">
                 <span class="detail-item-name">{{ tl.description || tl.road_nm }}</span>
-                <span class="detail-badges">
-                  <span v-if="tl.has_audio" class="audio-badge">음향</span>
-                  <span v-if="tl.has_remndr" class="remndr-badge">잔여</span>
+                <span v-if="tl.has_audio || tl.has_remndr" class="detail-badges">
+                  <span v-if="tl.has_audio" class="audio-badge">음향신호기</span>
+                  <span v-if="tl.has_remndr" class="remndr-badge">보행 잔여 시간</span>
                 </span>
               </div>
             </div>
@@ -2081,6 +2087,15 @@ p.info-jibun {
   transition: all 0.15s;
   gap: 10px;
 }
+.detail-item-vertical {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+.detail-item-border {
+  border-top: 1px solid #eee;
+  border-radius: 0;
+}
 .detail-item.clickable {
   cursor: pointer;
 }
@@ -2190,7 +2205,7 @@ p.info-jibun {
   position: absolute;
   top: 0;
   left: 0;
-  width: 360px;
+  width: 440px;
   height: 100%;
   background: white;
   z-index: 20;
