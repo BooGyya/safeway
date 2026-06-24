@@ -87,6 +87,10 @@ const transportOptions = [
 const selectedUserType = ref('normal')
 const walkSpeed = ref(1.0)
 const showRouteDetail = ref(false)
+const detailGroupOpen = ref({ hospitals: false, pharmacies: false, welfare: false })
+const toggleDetailGroup = (key) => {
+  detailGroupOpen.value[key] = !detailGroupOpen.value[key]
+}
 const activeRouteTab = ref('recommend')
 const routeTabs = [
   { key: 'recommend', label: '추천' },
@@ -1315,25 +1319,40 @@ const formatSteps = (meters) => {
               </div>
             </div>
             <div v-if="currentNearby.hospitals?.length" class="detail-group">
-              <h4>🏥 병원</h4>
-              <div v-for="(h, i) in currentNearby.hospitals" :key="'h'+i" class="detail-item">
-                <span class="detail-item-name">{{ h.name }}</span>
-                <span v-if="h.phone" class="detail-item-sub">{{ h.phone }}</span>
-              </div>
+              <h4 class="detail-group-toggle" @click="toggleDetailGroup('hospitals')">
+                <span>🏥 병원 ({{ currentNearby.hospitals.length }})</span>
+                <span class="detail-group-caret">{{ detailGroupOpen.hospitals ? '▲' : '▼' }}</span>
+              </h4>
+              <template v-if="detailGroupOpen.hospitals">
+                <div v-for="(h, i) in currentNearby.hospitals" :key="'h'+i" class="detail-item">
+                  <span class="detail-item-name">{{ h.name }}</span>
+                  <span v-if="h.phone" class="detail-item-sub">{{ h.phone }}</span>
+                </div>
+              </template>
             </div>
             <div v-if="currentNearby.pharmacies?.length" class="detail-group">
-              <h4>💊 약국</h4>
-              <div v-for="(p, i) in currentNearby.pharmacies" :key="'p'+i" class="detail-item">
-                <span class="detail-item-name">{{ p.name }}</span>
-                <span v-if="p.phone" class="detail-item-sub">{{ p.phone }}</span>
-              </div>
+              <h4 class="detail-group-toggle" @click="toggleDetailGroup('pharmacies')">
+                <span>💊 약국 ({{ currentNearby.pharmacies.length }})</span>
+                <span class="detail-group-caret">{{ detailGroupOpen.pharmacies ? '▲' : '▼' }}</span>
+              </h4>
+              <template v-if="detailGroupOpen.pharmacies">
+                <div v-for="(p, i) in currentNearby.pharmacies" :key="'p'+i" class="detail-item">
+                  <span class="detail-item-name">{{ p.name }}</span>
+                  <span v-if="p.phone" class="detail-item-sub">{{ p.phone }}</span>
+                </div>
+              </template>
             </div>
             <div v-if="currentNearby.welfare?.length" class="detail-group">
-              <h4>🏢 복지시설</h4>
-              <div v-for="(w, i) in currentNearby.welfare" :key="'w'+i" class="detail-item">
-                <span class="detail-item-name">{{ w.name }}</span>
-                <span v-if="w.phone" class="detail-item-sub">{{ w.phone }}</span>
-              </div>
+              <h4 class="detail-group-toggle" @click="toggleDetailGroup('welfare')">
+                <span>🏢 복지시설 ({{ currentNearby.welfare.length }})</span>
+                <span class="detail-group-caret">{{ detailGroupOpen.welfare ? '▲' : '▼' }}</span>
+              </h4>
+              <template v-if="detailGroupOpen.welfare">
+                <div v-for="(w, i) in currentNearby.welfare" :key="'w'+i" class="detail-item">
+                  <span class="detail-item-name">{{ w.name }}</span>
+                  <span v-if="w.phone" class="detail-item-sub">{{ w.phone }}</span>
+                </div>
+              </template>
             </div>
           </div>
         </div>
@@ -2146,6 +2165,17 @@ p.info-jibun {
   font-weight: 700;
   color: #333;
   margin: 0;
+}
+.detail-group-toggle {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+}
+.detail-group-caret {
+  font-size: calc(var(--base-font-size, 16px) - 5px);
+  color: #999;
 }
 .detail-item {
   display: flex;
