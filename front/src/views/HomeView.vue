@@ -1081,6 +1081,10 @@ const formatSteps = (meters) => {
                 <span class="route-card-time">{{ formatDuration(routeResult.route.duration) }}</span>
                 <span class="route-card-dist">{{ formatDistance(routeResult.route.distance) }}</span>
               </div>
+              <div v-if="routeResult.taxi_fare" class="route-card-meta">
+                예상 요금 {{ routeResult.taxi_fare.taxi?.toLocaleString() }}원
+                <template v-if="routeResult.taxi_fare.toll">+ 통행료 {{ routeResult.taxi_fare.toll.toLocaleString() }}원</template>
+              </div>
               <div v-if="routeResult.route.safety_score != null" class="route-card-meta">
                 안전 점수 {{ (routeResult.route.safety_score * 100).toFixed(0) }}점
               </div>

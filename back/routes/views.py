@@ -447,6 +447,7 @@ def search_route(request):
     route_error = None
 
     transit_steps = []
+    taxi_fare = None
 
     if transport_type == 'bus':
         tmap_data = get_tmap_transit_route(origin_lat, origin_lng, dest_lat, dest_lng)
@@ -504,8 +505,10 @@ def search_route(request):
             route_error = '택시 경로를 찾을 수 없습니다.'
         else:
             route_data_kakao = tmap_data['routes'][0]
-            distance = route_data_kakao.get('summary', {}).get('distance', 0)
-            duration = route_data_kakao.get('summary', {}).get('duration', 0)
+            summary = route_data_kakao.get('summary', {})
+            distance = summary.get('distance', 0)
+            duration = summary.get('duration', 0)
+            taxi_fare = summary.get('fare', {})
             for section in route_data_kakao.get('sections', []):
                 for road in section.get('roads', []):
                     vertexes = road.get('vertexes', [])
@@ -584,6 +587,7 @@ def search_route(request):
         'nearby': nearby,
         'transport_type': transport_type,
         'transit_steps': transit_steps,
+        'taxi_fare': taxi_fare,
     }, status=status.HTTP_201_CREATED)
 
 
