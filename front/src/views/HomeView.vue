@@ -170,6 +170,9 @@ const searchAddress = async (query, type) => {
   }
   try {
     const { data } = await routeAPI.searchAddress(query)
+    // 응답이 늦게 와서 그 사이 입력값이 바뀌었으면 오래된 결과는 버린다
+    const currentQuery = type === 'origin' ? originQuery.value : destQuery.value
+    if (currentQuery !== query) return
     if (type === 'origin') originSuggestions.value = data
     else destSuggestions.value = data
   } catch (e) {
@@ -1001,7 +1004,7 @@ const formatSteps = (meters) => {
             v-model="originQuery"
             type="text"
             placeholder="출발지 검색"
-            @input="searchAddress(originQuery, 'origin')"
+            @input="onOriginInput"
           />
           <button v-if="originQuery" class="input-clear" @click="clearOrigin">✕</button>
           <ul v-if="originSuggestions.length" class="suggestions">
@@ -1017,7 +1020,7 @@ const formatSteps = (meters) => {
             v-model="destQuery"
             type="text"
             placeholder="목적지 검색"
-            @input="searchAddress(destQuery, 'dest')"
+            @input="onDestInput"
           />
           <button v-if="destQuery" class="input-clear" @click="clearDest">✕</button>
           <ul v-if="destSuggestions.length" class="suggestions">
