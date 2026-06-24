@@ -200,8 +200,6 @@ const searchRoute = async () => {
     } else {
       drawRoute(data)
     }
-    const r = data.routes?.recommend || data.route
-    if (r) fetchNearbyFacilities(r)
   } catch {
     errorMsg.value = '경로 탐색에 실패했습니다.'
   } finally {
@@ -328,49 +326,25 @@ const fetchNearbyFacilities = async (route) => {
   } catch { /* 무시 */ }
 }
 
-const drawNearbyMarkers = (nearby) => {
-  const greenMarkerImage = createCategoryMarkerImage('#2eb872')
-  nearby.traffic_lights?.forEach(tl => {
+const addOverlayMarkers = (items, color, icon, label) => {
+  const markerImage = createCategoryMarkerImage(color)
+  items?.forEach(item => {
+    if (!item.lat || !item.lng) return
+    const position = new window.kakao.maps.LatLng(item.lat, item.lng)
     const marker = new window.kakao.maps.Marker({
-      position: new window.kakao.maps.LatLng(tl.lat, tl.lng),
-      map,
-      title: tl.road_nm || '신호등',
-      image: greenMarkerImage,
-    })
-    markers.push(marker)
-  })
-
-  const grayMarkerImage = createCategoryMarkerImage('#cccccc')
-  nearby.facilities?.forEach(f => {
-    const marker = new window.kakao.maps.Marker({
-      position: new window.kakao.maps.LatLng(f.lat, f.lng),
-      map,
-      title: f.name,
-      image: grayMarkerImage,
-    })
-    markers.push(marker)
-  })
-
-  const dangerCategoryIcons = { danger: '⚠️', obstacle: '🚧', broken: '🔨', construction: '🏗️' }
-  const redMarkerImage = createCategoryMarkerImage('#e53e3e')
-  nearby.danger_zones?.forEach(dz => {
-    const position = new window.kakao.maps.LatLng(dz.lat, dz.lng)
-    const marker = new window.kakao.maps.Marker({
-      position,
-      map,
-      title: dz.title,
-      image: redMarkerImage,
-      zIndex: 50,
+      position, map,
+      title: item.name || item.title || '',
+      image: markerImage,
+      zIndex: color === '#e53e3e' ? 50 : 10,
     })
     const overlay = createPlaceOverlay(
-      { name: dz.title, address: dz.address, category: dz.category_label },
-      { color: '#e53e3e', icon: dangerCategoryIcons[dz.category] || '⚠️', label: dz.category_label },
+      { name: item.name || item.title, address: item.address || '', phone: item.phone || '', place_url: item.place_url || '', category: item.category_label || '' },
+      { color, icon, label },
       position
     )
     window.kakao.maps.event.addListener(marker, 'mouseover', () => {
       if (activeOverlay && activeOverlay !== pinnedOverlay) activeOverlay.setMap(null)
-      overlay.setMap(map)
-      activeOverlay = overlay
+      overlay.setMap(map); activeOverlay = overlay
     })
     window.kakao.maps.event.addListener(marker, 'mouseout', () => {
       if (pinnedOverlay !== overlay) { overlay.setMap(null); if (activeOverlay === overlay) activeOverlay = null }
@@ -381,6 +355,18 @@ const drawNearbyMarkers = (nearby) => {
       overlay.setMap(map); pinnedOverlay = overlay; activeOverlay = overlay
     })
     markers.push(marker)
+  })
+}
+
+const drawNearbyMarkers = (nearby) => {
+  addOverlayMarkers(nearby.traffic_lights?.map(tl => ({ ...tl, name: tl.road_nm || '신호등' })), '#2eb872', '🚦', '신호등')
+  addOverlayMarkers(nearby.hospitals, '#4AADE8', '🏥', '병원')
+  addOverlayMarkers(nearby.pharmacies, '#F5C542', '💊', '약국')
+  addOverlayMarkers(nearby.welfare, '#805ad5', '🏢', '복지시설')
+
+  const dangerIcons = { danger: '⚠️', obstacle: '🚧', broken: '🔨', construction: '🏗️' }
+  nearby.danger_zones?.forEach(dz => {
+    addOverlayMarkers([{ ...dz, name: dz.title }], '#e53e3e', dangerIcons[dz.category] || '⚠️', dz.category_label || '위험')
   })
 }
 
@@ -1064,26 +1050,37 @@ const formatSteps = (meters) => {
 
           <!-- 주변 시설 요약 -->
           <div v-if="routeResult.nearby" class="nearby-summary">
-            <span>🚦 신호등 {{ routeResult.nearby.traffic_lights?.length || 0 }}개</span>
-            <span>♿ 편의시설 {{ routeResult.nearby.facilities?.length || 0 }}개</span>
+            <span>🚦 {{ routeResult.nearby.traffic_lights?.length || 0 }}</span>
+            <span>🏥 {{ routeResult.nearby.hospitals?.length || 0 }}</span>
+            <span>💊 {{ routeResult.nearby.pharmacies?.length || 0 }}</span>
+            <span>🏢 {{ routeResult.nearby.welfare?.length || 0 }}</span>
           </div>
 
           <!-- 상세보기 -->
           <div v-if="showRouteDetail && routeResult.nearby" class="route-detail-section">
-            <div v-if="routeResult.nearby.facilities?.length" class="detail-group">
-              <h4>♿ 주변 편의시설</h4>
-              <div
-                v-for="f in routeResult.nearby.facilities"
-                :key="f.id"
-                :class="['detail-item', 'clickable', { selected: selectedDetailFacility?.id === f.id }]"
-                @click="focusFacilityOnMap(f)"
-              >
-                <span class="detail-item-name">{{ f.name }}</span>
-                <span v-if="f.facility_type && f.facility_type !== 'other'" class="detail-item-type">{{ facilityTypeLabel(f.facility_type) }}</span>
+            <div v-if="routeResult.nearby.hospitals?.length" class="detail-group">
+              <h4>🏥 병원</h4>
+              <div v-for="(h, i) in routeResult.nearby.hospitals" :key="'h'+i" class="detail-item">
+                <span class="detail-item-name">{{ h.name }}</span>
+                <span v-if="h.phone" class="detail-item-sub">{{ h.phone }}</span>
+              </div>
+            </div>
+            <div v-if="routeResult.nearby.pharmacies?.length" class="detail-group">
+              <h4>💊 약국</h4>
+              <div v-for="(p, i) in routeResult.nearby.pharmacies" :key="'p'+i" class="detail-item">
+                <span class="detail-item-name">{{ p.name }}</span>
+                <span v-if="p.phone" class="detail-item-sub">{{ p.phone }}</span>
+              </div>
+            </div>
+            <div v-if="routeResult.nearby.welfare?.length" class="detail-group">
+              <h4>🏢 복지시설</h4>
+              <div v-for="(w, i) in routeResult.nearby.welfare" :key="'w'+i" class="detail-item">
+                <span class="detail-item-name">{{ w.name }}</span>
+                <span v-if="w.phone" class="detail-item-sub">{{ w.phone }}</span>
               </div>
             </div>
             <div v-if="routeResult.nearby.traffic_lights?.length" class="detail-group">
-              <h4>🚦 주변 신호등</h4>
+              <h4>🚦 신호등</h4>
               <div v-for="tl in routeResult.nearby.traffic_lights" :key="tl.id" class="detail-item">
                 <span class="detail-item-name">{{ tl.road_nm }}</span>
                 <span class="detail-badges">

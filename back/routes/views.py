@@ -8,7 +8,7 @@ import math
 
 from .models import Route, RouteFavorite, RouteHistory
 from .serializers import RouteSerializer, RouteFavoriteSerializer, RouteHistorySerializer
-from infrastructure.models import TrafficLight, Facility, SupportCenter
+from infrastructure.models import TrafficLight, SupportCenter
 from django.utils import timezone
 
 def get_distance(lat1, lng1, lat2, lng2):
@@ -162,82 +162,105 @@ def get_weather_info(lat, lng):
 
 
 def get_nearby(waypoints):
-    """경로 주변 편의시설 정보 수집"""
+    """경로 주변 시설 정보 수집 (경로 전체를 따라 탐색)"""
     from community.models import Post
 
     nearby = {
         'traffic_lights': [],
-        'facilities': [],
-        'support_centers': [],
+        'hospitals': [],
+        'pharmacies': [],
+        'welfare': [],
         'danger_zones': [],
     }
     if not waypoints:
         return nearby
 
+    # 경로 전체를 따라 샘플링 (경로 길이에 비례)
     total = len(waypoints)
-    step = max(1, total // 15)
+    step = max(1, total // 30)
     sampled = waypoints[::step]
-    RADIUS = 0.003
-    seen_lights = set()
-    seen_facilities = set()
-    seen_centers = set()
+    if waypoints[-1] not in sampled:
+        sampled.append(waypoints[-1])
 
+    # 신호등: 경로를 따라 수집 (제한 없음)
+    LIGHT_RADIUS = 0.002  # ~200m
+    seen_lights = set()
     for wp in sampled:
         lat, lng = wp['lat'], wp['lng']
-        if len(nearby['traffic_lights']) < 20:
-            lights = TrafficLight.objects.filter(
-                lat__range=(lat - RADIUS, lat + RADIUS),
-                lng__range=(lng - RADIUS, lng + RADIUS),
-            )
-            for l in lights:
-                if l.id not in seen_lights:
-                    seen_lights.add(l.id)
-                    nearby['traffic_lights'].append({
-                        'id': l.id,
-                        'road_nm': l.road_nm,
-                        'lat': l.lat,
-                        'lng': l.lng,
-                        'has_audio': l.has_audio,
-                        'has_remndr': l.has_remndr,
-                    })
-        if len(nearby['facilities']) < 100:
-            facilities = Facility.objects.filter(
-                lat__range=(lat - RADIUS, lat + RADIUS),
-                lng__range=(lng - RADIUS, lng + RADIUS),
-                is_available=True,
-            )
-            for f in facilities:
-                if f.id not in seen_facilities:
-                    seen_facilities.add(f.id)
-                    nearby['facilities'].append({
-                        'id': f.id,
-                        'name': f.name,
-                        'facility_type': f.facility_type,
-                        'lat': f.lat,
-                        'lng': f.lng,
-                        'address': f.address,
-                    })
-        if len(nearby['support_centers']) < 10:
-            centers = SupportCenter.objects.filter(
-                lat__range=(lat - RADIUS, lat + RADIUS),
-                lng__range=(lng - RADIUS, lng + RADIUS),
-                is_operating=True,
-            )
-            for c in centers:
-                if c.id not in seen_centers:
-                    seen_centers.add(c.id)
-                    nearby['support_centers'].append({
-                        'id': c.id,
-                        'name': c.name,
-                        'lat': c.lat,
-                        'lng': c.lng,
-                        'phone': c.phone,
-                    })
+        lights = TrafficLight.objects.filter(
+            lat__range=(lat - LIGHT_RADIUS, lat + LIGHT_RADIUS),
+            lng__range=(lng - LIGHT_RADIUS, lng + LIGHT_RADIUS),
+        )
+        for l in lights:
+            if l.id not in seen_lights:
+                seen_lights.add(l.id)
+                nearby['traffic_lights'].append({
+                    'id': l.id,
+                    'road_nm': l.road_nm,
+                    'lat': l.lat,
+                    'lng': l.lng,
+                    'has_audio': l.has_audio,
+                    'has_remndr': l.has_remndr,
+                })
 
-    nearby['traffic_lights'] = nearby['traffic_lights'][:20]
-    nearby['facilities'] = nearby['facilities'][:20]
-    nearby['support_centers'] = nearby['support_centers'][:10]
+    # 병원/약국/복지시설: 경로 기준 100m 반경 카카오 API
+    API_KEY = os.getenv('KAKAO_REST_API_KEY')
+    kakao_url = 'https://dapi.kakao.com/v2/local/search/category.json'
+    kakao_headers = {'Authorization': f'KakaoAK {API_KEY}'}
 
+    # 경로의 출발/중간/도착 3개 지점에서 검색
+    check_points = [waypoints[0], waypoints[len(waypoints)//2], waypoints[-1]]
+    category_map = {
+        'hospitals': 'HP8',
+        'pharmacies': 'PM9',
+    }
+
+    for cat_key, cat_code in category_map.items():
+        seen = set()
+        for cp in check_points:
+            try:
+                resp = requests.get(kakao_url, headers=kakao_headers, params={
+                    'category_group_code': cat_code,
+                    'x': cp['lng'], 'y': cp['lat'],
+                    'radius': 100, 'sort': 'distance', 'size': 5,
+                }, timeout=3)
+                for doc in resp.json().get('documents', []):
+                    place_id = doc['id']
+                    if place_id not in seen:
+                        seen.add(place_id)
+                        nearby[cat_key].append({
+                            'name': doc['place_name'],
+                            'address': doc['road_address_name'] or doc['address_name'],
+                            'lat': float(doc['y']),
+                            'lng': float(doc['x']),
+                            'phone': doc.get('phone', ''),
+                            'distance': doc.get('distance', ''),
+                            'place_url': doc.get('place_url', ''),
+                        })
+            except Exception:
+                pass
+
+    # 복지시설: DB에서 경로 100m 반경
+    seen_centers = set()
+    for cp in check_points:
+        centers = SupportCenter.objects.filter(
+            lat__range=(cp['lat'] - 0.001, cp['lat'] + 0.001),
+            lng__range=(cp['lng'] - 0.001, cp['lng'] + 0.001),
+            is_operating=True,
+        )
+        for c in centers:
+            if c.id not in seen_centers:
+                seen_centers.add(c.id)
+                nearby['welfare'].append({
+                    'id': c.id,
+                    'name': c.name,
+                    'address': c.address if hasattr(c, 'address') else '',
+                    'lat': c.lat,
+                    'lng': c.lng,
+                    'phone': c.phone,
+                })
+
+    # 위험구간
     lats = [wp['lat'] for wp in waypoints]
     lngs = [wp['lng'] for wp in waypoints]
     danger_posts = Post.objects.filter(
