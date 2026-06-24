@@ -133,7 +133,14 @@ const fetchHistory = async () => {
   try {
     const { data } = await routeAPI.getHistory()
     const hiddenIds = getHiddenHistoryIds()
-    history.value = data.filter(item => !hiddenIds.includes(item.id))
+    const filtered = data.filter(item => !hiddenIds.includes(item.id))
+    const seen = new Set()
+    history.value = filtered.filter(item => {
+      const key = `${item.route?.origin_name}_${item.route?.dest_name}_${item.route?.transport_type}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
   } catch {
     console.error('히스토리 로드 실패')
   }

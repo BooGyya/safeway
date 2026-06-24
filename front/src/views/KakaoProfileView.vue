@@ -16,6 +16,10 @@ const loading = ref(false)
 const errorMsg = ref('')
 
 const handleSubmit = async () => {
+  if (!form.value.nickname?.trim()) {
+    errorMsg.value = '별명은 필수입니다.'
+    return
+  }
   loading.value = true
   errorMsg.value = ''
   try {
@@ -23,8 +27,9 @@ const handleSubmit = async () => {
     await auth.fetchProfile()
     alert('추가 정보가 저장되었습니다!')
     router.push('/')
-  } catch {
-    errorMsg.value = '저장에 실패했습니다.'
+  } catch (e) {
+    const d = e.response?.data
+    errorMsg.value = d?.nickname?.[0] || '저장에 실패했습니다.'
   } finally {
     loading.value = false
   }
@@ -36,12 +41,12 @@ const handleSubmit = async () => {
 <template>
   <div class="kakao-profile-page">
     <div class="kakao-profile-box">
-      <h1>🦽 SafeWay</h1>
+      <img src="@/assets/logo.png" alt="SafeWay" class="logo-img" />
       <p class="subtitle">추가 정보 입력</p>
       <p class="desc">카카오 로그인으로 가입하셨어요! 추가 정보를 입력해주세요.</p>
 
       <div class="form">
-        <input v-model="form.nickname" type="text" placeholder="별명 (선택)" />
+        <input v-model="form.nickname" type="text" placeholder="별명 (필수)" />
         <input v-model="form.name" type="text" placeholder="이름 (선택)" />
         <input v-model="form.phone" type="text" placeholder="전화번호 (선택, 예: 01012345678)" />
 
@@ -72,9 +77,9 @@ const handleSubmit = async () => {
   max-width: 400px;
   text-align: center;
 }
-h1 {
-  font-size: calc(var(--base-font-size, 16px) + 12px);
-  color: #2eb872;
+.logo-img {
+  width: 160px;
+  height: auto;
   margin-bottom: 8px;
 }
 .subtitle {

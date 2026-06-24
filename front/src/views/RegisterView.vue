@@ -22,6 +22,14 @@ const loading = ref(false)
 const handleRegister = async () => {
   errorMsg.value = ''
 
+  if (!form.value.username?.trim()) {
+    errorMsg.value = '아이디는 필수입니다.'
+    return
+  }
+  if (!form.value.nickname?.trim()) {
+    errorMsg.value = '별명은 필수입니다.'
+    return
+  }
   if (form.value.password !== form.value.password2) {
     errorMsg.value = '비밀번호가 일치하지 않습니다.'
     return
@@ -37,8 +45,12 @@ const handleRegister = async () => {
     alert('회원가입이 완료되었습니다!')
     router.push('/login')
   } catch (e) {
-    errorMsg.value = e.response?.data?.username?.[0]
-      || e.response?.data?.password?.[0]
+    const d = e.response?.data
+    errorMsg.value = d?.username?.[0]
+      || d?.nickname?.[0]
+      || d?.password?.[0]
+      || d?.email?.[0]
+      || d?.non_field_errors?.[0]
       || '회원가입에 실패했습니다.'
   } finally {
     loading.value = false
@@ -49,7 +61,7 @@ const handleRegister = async () => {
 <template>
   <div class="register-page">
     <div class="register-box">
-      <h1>🦽 SafeWay</h1>
+      <img src="@/assets/logo.png" alt="SafeWay" class="logo-img" />
       <p class="subtitle">회원가입</p>
 
       <div class="form">
@@ -57,7 +69,7 @@ const handleRegister = async () => {
         <input v-model="form.email" type="email" placeholder="이메일 (필수)" />
         <input v-model="form.password" type="password" placeholder="비밀번호 (필수)" />
         <input v-model="form.password2" type="password" placeholder="비밀번호 확인 (필수)" @keyup.enter="handleRegister" />
-        <input v-model="form.nickname" type="text" placeholder="별명 (선택)" />
+        <input v-model="form.nickname" type="text" placeholder="별명 (필수)" />
         <input v-model="form.name" type="text" placeholder="이름 (선택)" />
         <input v-model="form.phone" type="text" placeholder="전화번호 (선택, 예: 01012345678)" />
 
@@ -104,9 +116,9 @@ const handleRegister = async () => {
   max-width: 400px;
   text-align: center;
 }
-h1 {
-  font-size: calc(var(--base-font-size, 16px) + 12px);
-  color: #2eb872;
+.logo-img {
+  width: 160px;
+  height: auto;
   margin-bottom: 8px;
 }
 .subtitle {
