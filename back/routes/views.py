@@ -313,70 +313,78 @@ def search_route(request):
             'weather_applied': weather_applied,
         }
 
-    # 경로 주변 편의시설 정보 수집
+    # 경로 주변 편의시설 정보 수집 (경로 waypoint 기준 300m 이내)
     nearby = {
         'traffic_lights': [],
         'facilities': [],
         'support_centers': [],
     }
-
     if waypoints:
-        lats = [wp['lat'] for wp in waypoints]
-        lngs = [wp['lng'] for wp in waypoints]
-        min_lat, max_lat = min(lats), max(lats)
-        min_lng, max_lng = min(lngs), max(lngs)
-        padding = 0.005
-
-        lights = TrafficLight.objects.filter(
-            lat__range=(min_lat - padding, max_lat + padding),
-            lng__range=(min_lng - padding, max_lng + padding),
-            has_remndr=True,
-        )[:20]
-        nearby['traffic_lights'] = [
-            {
-                'id': l.id,
-                'road_nm': l.road_nm,
-                'lat': l.lat,
-                'lng': l.lng,
-                'has_audio': l.has_audio,
-                'has_remndr': l.has_remndr,
-            }
-            for l in lights
-        ]
-
-        facilities = Facility.objects.filter(
-            lat__range=(min_lat - padding, max_lat + padding),
-            lng__range=(min_lng - padding, max_lng + padding),
-            is_available=True
-        )[:20]
-        nearby['facilities'] = [
-            {
-                'id': f.id,
-                'name': f.name,
-                'facility_type': f.facility_type,
-                'lat': f.lat,
-                'lng': f.lng,
-                'address': f.address,
-            }
-            for f in facilities
-        ]
-
-        centers = SupportCenter.objects.filter(
-            lat__range=(min_lat - padding, max_lat + padding),
-            lng__range=(min_lng - padding, max_lng + padding),
-            is_operating=True
-        )[:10]
-        nearby['support_centers'] = [
-            {
-                'id': c.id,
-                'name': c.name,
-                'lat': c.lat,
-                'lng': c.lng,
-                'phone': c.phone,
-            }
-            for c in centers
-        ]
-
+        total = len(waypoints)
+        step = max(1, total // 15)
+        sampled = waypoints[::step]
+        RADIUS = 0.003  # 약 300m
+        seen_lights = set()
+        seen_facilities = set()
+        seen_centers = set()
+        for wp in sampled:
+            lat, lng = wp['lat'], wp['lng']
+            # 신호등
+            if len(nearby['traffic_lights']) < 20:
+                lights = TrafficLight.objects.filter(
+                    lat__range=(lat - RADIUS, lat + RADIUS),
+                    lng__range=(lng - RADIUS, lng + RADIUS),
+                )
+                for l in lights:
+                    if l.id not in seen_lights:
+                        seen_lights.add(l.id)
+                        nearby['traffic_lights'].append({
+                            'id': l.id,
+                            'road_nm': l.road_nm,
+                            'lat': l.lat,
+                            'lng': l.lng,
+                            'has_audio': l.has_audio,
+                            'has_remndr': l.has_remndr,
+                        })
+            # 편의시설
+            if len(nearby['facilities']) < 100:
+                facilities = Facility.objects.filter(
+                    lat__range=(lat - RADIUS, lat + RADIUS),
+                    lng__range=(lng - RADIUS, lng + RADIUS),
+                    is_available=True,
+                )
+                for f in facilities:
+                    if f.id not in seen_facilities:
+                        seen_facilities.add(f.id)
+                        nearby['facilities'].append({
+                            'id': f.id,
+                            'name': f.name,
+                            'facility_type': f.facility_type,
+                            'lat': f.lat,
+                            'lng': f.lng,
+                            'address': f.address,
+                        })
+            # 지원센터
+            if len(nearby['support_centers']) < 10:
+                centers = SupportCenter.objects.filter(
+                    lat__range=(lat - RADIUS, lat + RADIUS),
+                    lng__range=(lng - RADIUS, lng + RADIUS),
+                    is_operating=True,
+                )
+                for c in centers:
+                    if c.id not in seen_centers:
+                        seen_centers.add(c.id)
+                        nearby['support_centers'].append({
+                            'id': c.id,
+                            'name': c.name,
+                            'lat': c.lat,
+                            'lng': c.lng,
+                            'phone': c.phone,
+                        })
+    nearby['traffic_lights'] = nearby['traffic_lights'][:20]
+    nearby['facilities'] = nearby['facilities'][:20]
+    nearby['support_centers'] = nearby['support_centers'][:10]
+    
     return Response({
         'route': route_data,
         'weather': weather,
