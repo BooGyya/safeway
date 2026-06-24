@@ -95,11 +95,25 @@ const routeTabs = [
   { key: 'weather', label: '날씨추천' },
 ]
 const routeDescriptions = {
-  recommend: '가장 빠른 경로',
+  recommend: '최단 거리 경로',
   stair_free: '계단 없는 경로',
   main_road: '대로 위주의 넓은 도로 경로',
   weather: '비 올 때 예상 소요시간',
 }
+const fastestRouteKey = computed(() => {
+  if (!routeResult.value?.routes) return null
+  let best = null
+  let bestDuration = Infinity
+  for (const key of ['recommend', 'stair_free', 'main_road']) {
+    const duration = routeResult.value.routes[key]?.duration
+    if (duration != null && duration < bestDuration) {
+      bestDuration = duration
+      best = key
+    }
+  }
+  return best
+})
+const transitModeIcon = (mode) => ({ WALK: '🚶', BUS: '🚌', SUBWAY: '🚇' }[mode] || '🚏')
 const currentNearby = computed(() => {
   if (!routeResult.value) return null
   if (routeResult.value.routes) {
@@ -170,6 +184,9 @@ const searchAddress = async (query, type) => {
   }
   try {
     const { data } = await routeAPI.searchAddress(query)
+    // 응답이 늦게 와서 그 사이 입력값이 바뀌었으면 오래된 결과는 버린다
+    const currentQuery = type === 'origin' ? originQuery.value : destQuery.value
+    if (currentQuery !== query) return
     if (type === 'origin') originSuggestions.value = data
     else destSuggestions.value = data
   } catch (e) {
@@ -1007,7 +1024,7 @@ const formatSteps = (meters) => {
             v-model="originQuery"
             type="text"
             placeholder="출발지 검색"
-            @input="searchAddress(originQuery, 'origin')"
+            @input="onOriginInput"
           />
           <button v-if="originQuery" class="input-clear" @click="clearOrigin">✕</button>
           <ul v-if="originSuggestions.length" class="suggestions">
@@ -1023,7 +1040,7 @@ const formatSteps = (meters) => {
             v-model="destQuery"
             type="text"
             placeholder="목적지 검색"
-            @input="searchAddress(destQuery, 'dest')"
+            @input="onDestInput"
           />
           <button v-if="destQuery" class="input-clear" @click="clearDest">✕</button>
           <ul v-if="destSuggestions.length" class="suggestions">
@@ -1055,7 +1072,10 @@ const formatSteps = (meters) => {
               :class="['route-card', { active: activeRouteTab === tab.key }]"
               @click="switchRouteTab(tab.key)"
             >
-              <div class="route-card-label" :class="tab.key">{{ routeResult.routes[tab.key]?.label || tab.label }}</div>
+              <div class="route-card-label" :class="tab.key">
+                {{ routeResult.routes[tab.key]?.label || tab.label }}
+                <span v-if="tab.key === fastestRouteKey" class="fastest-badge">최단시간</span>
+              </div>
               <div class="route-card-desc">{{ routeDescriptions[tab.key] }}</div>
               <div class="route-card-main">
                 <span class="route-card-time">{{ formatDuration(routeResult.routes[tab.key]?.duration) }}</span>
@@ -1063,6 +1083,7 @@ const formatSteps = (meters) => {
                 <span class="route-card-steps">{{ formatSteps(routeResult.routes[tab.key]?.distance) }} 걸음</span>
               </div>
               <div class="route-card-meta">
+                안전 점수 {{ ((routeResult.routes[tab.key]?.safety_score ?? 0) * 100).toFixed(0) }}점 ·
                 횡단보도 {{ routeResult.routes[tab.key]?.crosswalk_count || routeResult.routes[tab.key]?.nearby?.traffic_lights?.length || 0 }}회
               </div>
               <div v-if="routeResult.routes[tab.key]?.message" class="route-card-weather-msg">
@@ -1081,8 +1102,22 @@ const formatSteps = (meters) => {
                 <span class="route-card-time">{{ formatDuration(routeResult.route.duration) }}</span>
                 <span class="route-card-dist">{{ formatDistance(routeResult.route.distance) }}</span>
               </div>
-              <div class="route-card-meta">
+              <div v-if="routeResult.route.safety_score != null" class="route-card-meta">
                 안전 점수 {{ (routeResult.route.safety_score * 100).toFixed(0) }}점
+              </div>
+              <div v-if="routeResult.transit_steps?.length" class="transit-steps">
+                <div v-for="(step, idx) in routeResult.transit_steps" :key="idx" class="transit-step">
+                  <span class="transit-step-icon">{{ transitModeIcon(step.mode) }}</span>
+                  <span class="transit-step-text">
+                    <template v-if="step.mode === 'WALK'">
+                      도보 {{ formatDistance(step.distance) }} ({{ step.start_name }} → {{ step.end_name }})
+                    </template>
+                    <template v-else>
+                      {{ step.route }} · {{ step.start_name }} → {{ step.end_name }}
+                    </template>
+                  </span>
+                  <span class="transit-step-time">{{ formatDuration(step.duration) }}</span>
+                </div>
               </div>
             </div>
           </template>
@@ -1514,6 +1549,17 @@ h2 {
 .route-card-label.stair_free { color: #805ad5; }
 .route-card-label.main_road { color: #3366FF; }
 .route-card-label.weather { color: #e65100; }
+.fastest-badge {
+  display: inline-block;
+  font-size: calc(var(--base-font-size, 16px) - 6px);
+  font-weight: 700;
+  color: #fff;
+  background: #ff7043;
+  border-radius: 8px;
+  padding: 1px 6px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
 .route-card-desc {
   font-size: calc(var(--base-font-size, 16px) - 5px);
   color: #aaa;
@@ -1541,6 +1587,31 @@ h2 {
 .route-card-meta {
   font-size: calc(var(--base-font-size, 16px) - 4px);
   color: #999;
+}
+.transit-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #eee;
+}
+.transit-step {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: calc(var(--base-font-size, 16px) - 3px);
+  color: #444;
+}
+.transit-step-icon {
+  flex-shrink: 0;
+}
+.transit-step-text {
+  flex: 1;
+}
+.transit-step-time {
+  color: #999;
+  font-size: calc(var(--base-font-size, 16px) - 4px);
 }
 .route-card-weather-msg {
   font-size: calc(var(--base-font-size, 16px) - 4px);

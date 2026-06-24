@@ -14,5 +14,5 @@ export const chatbotAPI = {
     api.delete('/api/chatbot/history/'),
 
   searchAddress: (q) =>
-    api.get('/api/routes/search/', { params: { q } }),
+    api.get('/api/routes/address/', { params: { q } }),
 }
