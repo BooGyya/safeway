@@ -161,14 +161,27 @@ def extract_location_from_message(message):
         r'(.+?)(?:근처|주변|인근|가까운)',
         r'(.+?)(?:에서|에|의)',
     ]
+    deictic_words = ['거기', '여기', '저기', '이곳']
     for pattern in patterns:
         match = re.search(pattern, message)
         if match:
             place = match.group(1).strip()
-            # 너무 짧거나 불필요한 단어 제거
-            if len(place) >= 2 and place not in ['거기', '여기', '저기', '이곳']:
+            # 너무 짧거나 "여기서"처럼 현재 위치를 가리키는 지시어는 장소명이 아님
+            if len(place) >= 2 and not any(d in place for d in deictic_words):
                 return place
     return None
+
+
+def extract_facility_keyword(message):
+    """메시지에서 시설 종류 키워드만 추출 (검색 쿼리용)"""
+    facility_keywords = [
+        '복지시설', '지원센터', '병원', '약국', '엘리베이터',
+        '경사로', '화장실', '주차장', '횡단보도', '신호등',
+    ]
+    for kw in facility_keywords:
+        if kw in message:
+            return kw
+    return message
 
 
 def detect_route_query(message):
@@ -248,10 +261,15 @@ def chat(request):
                 search_lng = places[0]['lng']
 
         if search_lat and search_lng:
+            facility_query = extract_facility_keyword(message)
             # DB 시설 검색
-            db_results = search_db_facilities(message, float(search_lat), float(search_lng))
-            # 카카오 장소 검색 (복지시설, 병원, 약국 등)
-            kakao_results = search_kakao_places(message, float(search_lat), float(search_lng))
+            db_results = search_db_facilities(facility_query, float(search_lat), float(search_lng))
+            # 카카오 장소 검색 (복지시설, 병원, 약국 등). 좁은 반경에 결과가 없으면 반경을 넓혀 재시도
+            kakao_results = []
+            for radius in (1000, 3000, 5000):
+                kakao_results = search_kakao_places(facility_query, float(search_lat), float(search_lng), radius=radius)
+                if kakao_results:
+                    break
 
             all_results = db_results + kakao_results
             if all_results:
@@ -267,12 +285,32 @@ def chat(request):
                     facility_context += "\n"
 
     # ── 5. 시스템 프롬프트 구성 ──
+    location_status = (
+        "현재 사용자의 위치 정보가 이미 확인되어 있습니다. 위치 공유 여부나 검색 반경을 다시 묻지 말고, "
+        "바로 주변 시설을 안내해주세요."
+        if user_lat and user_lng else
+        "현재 사용자의 위치 정보가 없습니다. 위치 공유를 요청하거나 구체적인 장소명을 물어봐주세요."
+    )
+    no_result_guide = (
+        "\n\n검색을 시도했지만 주변에서 결과를 찾지 못했습니다. 위치를 다시 묻지 말고, "
+        "주변에 해당 시설이 없다는 점을 사용자에게 명확히 알려주세요."
+        if (detect_location_query(message) and user_lat and user_lng and not facility_context)
+        else ""
+    )
+    route_guide = (
+        "\n\n출발지와 목적지가 감지되어 지도 화면에서 실제 도보 경로를 계산해 보여줄 예정입니다. "
+        "지하철 호선, 환승, 출구, 정류장, 소요시간 등 실시간 대중교통 정보는 추측해서 말하지 마세요. "
+        "지도에서 경로를 확인할 수 있다고 안내하고, 필요하면 날씨나 보행 속도에 따른 일반적인 이동 조언만 덧붙이세요."
+        if route_action else ""
+    )
+
     system_prompt = f"""당신은 SafeWay의 AI 안내 도우미입니다.
 교통약자(장애인, 노인, 휠체어 사용자, 임산부 등)의 안전한 이동을 돕는 서비스입니다.
 
 현재 사용자 정보:
 - 사용자 유형: {user.user_type}
 - 보행 속도: {user.walk_speed} m/s{weather_context}
+- 위치 상태: {location_status}
 
 역할:
 1. 경로 안내 및 주변 시설 안내
@@ -280,9 +318,10 @@ def chat(request):
 3. 날씨에 따른 이동 조언
 4. 교통약자 관련 정보 제공
 
-{facility_context}
+{facility_context}{no_result_guide}{route_guide}
 
-위 시설 정보가 있다면 이를 바탕으로 구체적으로 안내해주세요.
+위 시설 정보가 있다면 이를 바탕으로 구체적으로 안내해주세요. 사용자의 위치 정보가 이미 확인된 상태라면
+위치 공유나 검색 반경에 대해 다시 묻지 마세요.
 항상 친절하고 명확하게 한국어로 답변해주세요."""
 
     # ── 6. LLM 호출 ──
