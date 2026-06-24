@@ -37,6 +37,7 @@ const facilityQuery = ref('')
 const facilityResults = ref([])
 const facilityLoading = ref(false)
 const selectedFacility = ref(null)
+const facilitySearchHistory = ref(JSON.parse(localStorage.getItem('facilitySearchHistory') || '[]'))
 let facilityMarkers = []
 
 // 지도 클릭 위치 정보
@@ -291,20 +292,25 @@ const createPlaceOverlay = (place, category, position) => {
   content.className = 'marker-overlay'
   content.innerHTML = `
     <div class="marker-overlay-inner" style="border-top: 3px solid ${category.color}">
-      <span class="marker-overlay-badge" style="background:${category.color}">
-        ${category.icon} ${category.label}
-      </span>
+      <button class="marker-overlay-close">✕</button>
       <strong class="marker-overlay-name">${place.name}</strong>
-      ${place.address ? `<p class="marker-overlay-row">📍 ${place.address}</p>` : ''}
-      ${place.phone ? `<p class="marker-overlay-row">📞 <a href="tel:${place.phone}" class="marker-overlay-phone">${place.phone}</a></p>` : ''}
-      ${place.distance ? `<p class="marker-overlay-row">📏 ${place.distance}m</p>` : ''}
-      ${place.place_url ? `<p class="marker-overlay-row"><a href="${place.place_url}" target="_blank" rel="noopener" class="marker-overlay-link">상세 정보 보기 →</a></p>` : ''}
+      ${place.category ? `<p class="marker-overlay-category">${place.category}</p>` : `<span class="marker-overlay-badge" style="background:${category.color}">${category.icon} ${category.label}</span>`}
+      ${place.address ? `<p class="marker-overlay-row"><span class="marker-overlay-icon">📍</span> ${place.address}</p>` : ''}
+      ${place.jibun && place.jibun !== place.address ? `<p class="marker-overlay-jibun">(지번) ${place.jibun}</p>` : ''}
+      ${place.phone ? `<p class="marker-overlay-row"><span class="marker-overlay-icon">📞</span> <a href="tel:${place.phone}" class="marker-overlay-phone">${place.phone}</a></p>` : ''}
+      ${place.place_url ? `<a href="${place.place_url}" target="_blank" rel="noopener" class="marker-overlay-detail-btn">영업시간·메뉴·리뷰 등 상세정보 보기 →</a>` : ''}
     </div>
     <div class="marker-overlay-arrow" style="border-top-color:white"></div>
   `
 
   content.addEventListener('click', (e) => {
     e.stopPropagation()
+  })
+
+  content.querySelector('.marker-overlay-close').addEventListener('click', () => {
+    overlay.setMap(null)
+    if (pinnedOverlay === overlay) pinnedOverlay = null
+    if (activeOverlay === overlay) activeOverlay = null
   })
   content.addEventListener('mouseenter', () => {
     overlay.setMap(map)
@@ -358,8 +364,11 @@ const toggleCategory = async (categoryKey) => {
                 lat: parseFloat(p.y),
                 lng: parseFloat(p.x),
                 address: p.road_address_name || p.address_name,
-                phone: p.phone,
-                place_url: p.place_url,
+                jibun: p.address_name || '',
+                phone: p.phone || '',
+                category: p.category_name || '',
+                place_url: p.place_url || '',
+                distance: p.distance || '',
               }))
             }
             resolve()
@@ -523,49 +532,78 @@ const sendSOS = async () => {
   }
 }
 
-// 시설 검색
+const addSearchHistory = (keyword) => {
+  const filtered = facilitySearchHistory.value.filter(h => h !== keyword)
+  filtered.unshift(keyword)
+  facilitySearchHistory.value = filtered.slice(0, 10)
+  localStorage.setItem('facilitySearchHistory', JSON.stringify(facilitySearchHistory.value))
+}
+
+const removeSearchHistory = (keyword) => {
+  facilitySearchHistory.value = facilitySearchHistory.value.filter(h => h !== keyword)
+  localStorage.setItem('facilitySearchHistory', JSON.stringify(facilitySearchHistory.value))
+}
+
+const clearAllSearchHistory = () => {
+  facilitySearchHistory.value = []
+  localStorage.removeItem('facilitySearchHistory')
+}
+
+const searchFromHistory = (keyword) => {
+  facilityQuery.value = keyword
+  searchFacility()
+}
+
+// 시설 검색 (카카오 SDK 직접 사용으로 상세정보 확보)
 const searchFacility = async () => {
   if (!facilityQuery.value.trim()) return
+  addSearchHistory(facilityQuery.value.trim())
   facilityLoading.value = true
   facilityResults.value = []
   selectedFacility.value = null
-  try {
-    const [facilityRes, kakaoRes] = await Promise.allSettled([
-      infraAPI.searchFacilities(facilityQuery.value),
-      routeAPI.searchAddress(facilityQuery.value),
-    ])
-    const dbResults = facilityRes.status === 'fulfilled'
-      ? (Array.isArray(facilityRes.value.data) ? facilityRes.value.data : [])
-      : []
-    const kakaoResults = kakaoRes.status === 'fulfilled'
-      ? (Array.isArray(kakaoRes.value.data) ? kakaoRes.value.data : []).map(p => ({
-          ...p,
-          source: 'kakao',
-        }))
-      : []
-    facilityResults.value = [...dbResults, ...kakaoResults]
-    clearFacilityMarkers()
-    facilityResults.value.forEach(f => {
-      if (!f.lat || !f.lng) return
-      const marker = new window.kakao.maps.Marker({
-        position: new window.kakao.maps.LatLng(f.lat, f.lng),
-        map,
+  clearFacilityMarkers()
+
+  const center = map.getCenter()
+  const ps = new window.kakao.maps.services.Places()
+
+  ps.keywordSearch(
+    facilityQuery.value,
+    (data, status) => {
+      facilityLoading.value = false
+      if (status !== window.kakao.maps.services.Status.OK || !data.length) {
+        facilityResults.value = []
+        return
+      }
+      facilityResults.value = data.map(doc => ({
+        name: doc.place_name,
+        address: doc.road_address_name || doc.address_name,
+        jibun: doc.address_name || '',
+        lat: parseFloat(doc.y),
+        lng: parseFloat(doc.x),
+        phone: doc.phone || '',
+        category: doc.category_name || '',
+        place_url: doc.place_url || '',
+        distance: doc.distance || '',
+      }))
+
+      facilityResults.value.forEach(f => {
+        if (!f.lat || !f.lng) return
+        const marker = new window.kakao.maps.Marker({
+          position: new window.kakao.maps.LatLng(f.lat, f.lng),
+          map,
+        })
+        window.kakao.maps.event.addListener(marker, 'click', () => selectFacility(f))
+        facilityMarkers.push(marker)
       })
-      window.kakao.maps.event.addListener(marker, 'click', () => selectFacility(f))
-      facilityMarkers.push(marker)
-    })
-    if (facilityResults.value.length > 0) {
+
       const bounds = new window.kakao.maps.LatLngBounds()
       facilityResults.value.forEach(f => {
         if (f.lat && f.lng) bounds.extend(new window.kakao.maps.LatLng(f.lat, f.lng))
       })
       map.setBounds(bounds)
-    }
-  } catch {
-    facilityResults.value = []
-  } finally {
-    facilityLoading.value = false
-  }
+    },
+    { location: center, size: 15, sort: 'distance' }
+  )
 }
 
 const selectFacility = (facility) => {
@@ -910,23 +948,37 @@ const formatDistance = (meters) => {
           {{ facilityLoading ? '검색 중...' : '시설 검색' }}
         </button>
 
+        <!-- 검색 기록 (검색 결과가 없을 때 표시) -->
+        <div v-if="facilitySearchHistory.length && !facilityResults.length && !selectedFacility" class="search-history">
+          <div class="search-history-header">
+            <span class="search-history-title">최근 검색</span>
+            <button class="search-history-clear" @click="clearAllSearchHistory">전체 삭제</button>
+          </div>
+          <div class="search-history-list">
+            <div v-for="keyword in facilitySearchHistory" :key="keyword" class="search-history-item">
+              <span class="search-history-keyword" @click="searchFromHistory(keyword)">🔍 {{ keyword }}</span>
+              <button class="search-history-remove" @click="removeSearchHistory(keyword)">✕</button>
+            </div>
+          </div>
+        </div>
+
         <!-- 선택된 시설 상세 -->
         <div v-if="selectedFacility" class="facility-detail">
           <button class="facility-detail-close" @click="selectedFacility = null">✕</button>
           <h3>{{ selectedFacility.name }}</h3>
-          <span v-if="selectedFacility.facility_type" class="facility-type-badge">
-            {{ facilityTypeLabel(selectedFacility.facility_type) }}
-          </span>
+          <p v-if="selectedFacility.category" class="info-category">{{ selectedFacility.category }}</p>
           <div class="facility-detail-body">
-            <p v-if="selectedFacility.address">📍 {{ selectedFacility.address }}</p>
-            <p v-if="selectedFacility.sido">📌 {{ selectedFacility.sido }} {{ selectedFacility.sigungu }}</p>
-            <p v-if="selectedFacility.phone">📞 <a :href="'tel:' + selectedFacility.phone">{{ selectedFacility.phone }}</a></p>
-            <p v-if="selectedFacility.is_available !== undefined">
-              상태: <span :class="selectedFacility.is_available ? 'status-open' : 'status-closed'">
-                {{ selectedFacility.is_available ? '이용 가능' : '이용 불가' }}
-              </span>
-            </p>
+            <p v-if="selectedFacility.address"><span class="info-icon">📍</span> {{ selectedFacility.address }}</p>
+            <p v-if="selectedFacility.jibun && selectedFacility.jibun !== selectedFacility.address" class="info-jibun">(지번) {{ selectedFacility.jibun }}</p>
+            <p v-if="selectedFacility.phone"><span class="info-icon">📞</span> <a :href="'tel:' + selectedFacility.phone" class="info-link">{{ selectedFacility.phone }}</a></p>
           </div>
+          <a
+            v-if="selectedFacility.place_url"
+            :href="selectedFacility.place_url"
+            target="_blank"
+            rel="noopener"
+            class="place-detail-link"
+          >영업시간·메뉴·리뷰 등 상세정보 보기 →</a>
           <div class="facility-actions">
             <button class="action-btn" @click="setAsOrigin(selectedFacility)">출발지로 설정</button>
             <button class="action-btn action-btn-primary" @click="setAsDest(selectedFacility)">목적지로 설정</button>
@@ -942,10 +994,24 @@ const formatDistance = (meters) => {
             @click="selectFacility(f)"
           >
             <div class="facility-item-name">{{ f.name }}</div>
-            <div class="facility-item-address">{{ f.address }}</div>
-            <span v-if="f.facility_type" class="facility-type-badge small">
-              {{ facilityTypeLabel(f.facility_type) }}
-            </span>
+            <p v-if="f.category" class="info-category">{{ f.category }}</p>
+            <p class="facility-item-sub"><span class="info-icon">📍</span> {{ f.address }}</p>
+            <p v-if="f.jibun && f.jibun !== f.address" class="info-jibun">(지번) {{ f.jibun }}</p>
+            <p v-if="f.phone" class="facility-item-sub"><span class="info-icon">📞</span> {{ f.phone }}</p>
+          </div>
+        </div>
+
+        <!-- 검색 기록 (검색 결과 아래) -->
+        <div v-if="facilitySearchHistory.length && facilityResults.length && !selectedFacility" class="search-history below">
+          <div class="search-history-header">
+            <span class="search-history-title">최근 검색</span>
+            <button class="search-history-clear" @click="clearAllSearchHistory">전체 삭제</button>
+          </div>
+          <div class="search-history-list">
+            <div v-for="keyword in facilitySearchHistory" :key="keyword" class="search-history-item">
+              <span class="search-history-keyword" @click="searchFromHistory(keyword)">🔍 {{ keyword }}</span>
+              <button class="search-history-remove" @click="removeSearchHistory(keyword)">✕</button>
+            </div>
           </div>
         </div>
 
@@ -956,14 +1022,15 @@ const formatDistance = (meters) => {
 
       <!-- 지도 클릭 위치 정보 -->
       <div v-if="clickedPlace" class="clicked-place">
-        <button class="facility-detail-close" @click="clearClickedPlace">✕</button>
-
-        <div ref="previewMapContainer" class="clicked-place-img"></div>
-
-        <h4 v-if="clickedPlace.name">{{ clickedPlace.name }}</h4>
-        <h4 v-else>선택한 위치</h4>
+        <div class="clicked-place-top">
+          <h4 v-if="clickedPlace.name">{{ clickedPlace.name }}</h4>
+          <h4 v-else>선택한 위치</h4>
+          <button class="clicked-place-close" @click="clearClickedPlace">✕</button>
+        </div>
 
         <p v-if="clickedPlace.category" class="clicked-category">{{ clickedPlace.category }}</p>
+
+        <div ref="previewMapContainer" class="clicked-place-img"></div>
 
         <div class="facility-detail-body">
           <p>📍 {{ clickedPlace.address }}</p>
@@ -973,26 +1040,14 @@ const formatDistance = (meters) => {
           <p v-if="clickedPlace.phone">📞 <a :href="'tel:' + clickedPlace.phone">{{ clickedPlace.phone }}</a></p>
         </div>
 
-        <div class="clicked-links">
-          <a
-            v-if="clickedPlace.placeUrl"
-            :href="clickedPlace.placeUrl"
-            target="_blank"
-            rel="noopener"
-            class="clicked-link-btn"
-          >
-            카카오맵에서 보기
-          </a>
-          <a
-            v-else
-            :href="clickedPlace.kakaoMapLink"
-            target="_blank"
-            rel="noopener"
-            class="clicked-link-btn"
-          >
-            카카오맵에서 보기
-          </a>
-        </div>
+        <a
+          :href="clickedPlace.placeUrl || clickedPlace.kakaoMapLink"
+          target="_blank"
+          rel="noopener"
+          class="place-detail-link"
+        >
+          영업시간·메뉴·리뷰 등 상세정보 보기 →
+        </a>
 
         <div class="facility-actions">
           <button class="action-btn" @click="setAsOrigin(clickedPlace)">출발지로 설정</button>
@@ -1295,6 +1350,116 @@ h2 {
   padding: 20px 0;
 }
 
+/* 시설 검색 기록 */
+.search-history {
+  background: #f9f9f9;
+  border-radius: 10px;
+  padding: 12px;
+}
+.search-history.below {
+  margin-top: 4px;
+}
+.search-history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.search-history-title {
+  font-size: calc(var(--base-font-size, 16px) - 3px);
+  font-weight: 600;
+  color: #555;
+}
+.search-history-clear {
+  background: none;
+  border: none;
+  color: #999;
+  font-size: calc(var(--base-font-size, 16px) - 4px);
+  cursor: pointer;
+}
+.search-history-clear:hover {
+  color: #e53e3e;
+}
+.search-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.search-history-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 4px;
+  border-radius: 6px;
+}
+.search-history-item:hover {
+  background: #e6f7ee;
+}
+.search-history-keyword {
+  cursor: pointer;
+  font-size: calc(var(--base-font-size, 16px) - 3px);
+  color: #444;
+}
+.search-history-remove {
+  background: none;
+  border: none;
+  color: #ccc;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+.search-history-remove:hover {
+  color: #999;
+}
+.facility-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+.facility-item-dist {
+  font-size: calc(var(--base-font-size, 16px) - 5px);
+  color: #2eb872;
+  font-weight: 600;
+}
+.facility-item-phone {
+  font-size: calc(var(--base-font-size, 16px) - 5px);
+  color: #888;
+}
+.detail-ext-link {
+  color: #2eb872;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: calc(var(--base-font-size, 16px) - 3px);
+}
+.detail-ext-link:hover {
+  text-decoration: underline;
+}
+.facility-item-category {
+  font-size: calc(var(--base-font-size, 16px) - 5px);
+  color: #2eb872;
+  font-weight: 500;
+}
+.facility-item-phone {
+  font-size: calc(var(--base-font-size, 16px) - 4px);
+  color: #666;
+  margin-top: 2px;
+}
+.facility-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.facility-category-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: #e6f7ee;
+  color: #2eb872;
+  font-size: calc(var(--base-font-size, 16px) - 5px);
+  font-weight: 500;
+}
+
 /* 시설 상세 */
 .facility-detail {
   position: relative;
@@ -1316,11 +1481,19 @@ h2 {
   position: absolute;
   top: 10px;
   right: 12px;
-  background: none;
+  background: rgba(255,255,255,0.9);
   border: none;
   font-size: 16px;
   cursor: pointer;
-  color: #999;
+  color: #666;
+  z-index: 10;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.15);
 }
 .facility-detail-body {
   display: flex;
@@ -1394,13 +1567,38 @@ h2 {
   padding: 14px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
-.clicked-place h4 {
+.clicked-place-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+.clicked-place-top h4 {
   margin: 0;
-  font-size: calc(var(--base-font-size, 16px) - 1px);
+  font-size: calc(var(--base-font-size, 16px));
   color: #333;
   font-weight: 700;
+  flex: 1;
+}
+.clicked-place-close {
+  background: #eee;
+  border: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  font-size: 14px;
+  color: #666;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.clicked-place-close:hover {
+  background: #ddd;
+  color: #333;
 }
 .clicked-place p {
   margin: 0;
@@ -1413,11 +1611,54 @@ h2 {
 }
 .clicked-place-img {
   width: 100%;
-  height: 120px;
+  height: 180px;
   border-radius: 8px;
   background: #eee;
   overflow: hidden;
 }
+.place-detail-link {
+  display: block;
+  padding: 10px;
+  background: #fee500;
+  color: #3c1e1e;
+  border-radius: 8px;
+  font-size: calc(var(--base-font-size, 16px) - 2px);
+  font-weight: 600;
+  text-decoration: none;
+  text-align: center;
+  transition: background 0.15s;
+}
+.place-detail-link:hover {
+  background: #fdd835;
+}
+
+/* 통일 정보 스타일 */
+p.info-category {
+  font-size: calc(var(--base-font-size, 16px) - 4px) !important;
+  color: #999 !important;
+  margin: 0 !important;
+}
+p.info-jibun {
+  font-size: calc(var(--base-font-size, 16px) - 5px) !important;
+  color: #aaa !important;
+  margin: -1px 0 0 20px !important;
+}
+.info-icon {
+  opacity: 0.7;
+}
+.info-link {
+  color: #2eb872;
+  text-decoration: none;
+}
+.info-link:hover {
+  text-decoration: underline;
+}
+.facility-item-sub {
+  font-size: calc(var(--base-font-size, 16px) - 4px);
+  color: #666;
+  margin: 1px 0 0;
+}
+
 .clicked-category {
   margin: 0;
   font-size: calc(var(--base-font-size, 16px) - 4px);
@@ -1658,9 +1899,10 @@ h2 {
   cursor: default;
 }
 .marker-overlay-inner {
+  position: relative;
   background: white;
   border-radius: 12px;
-  padding: 12px 14px;
+  padding: 12px 28px 12px 14px;
   min-width: 180px;
   max-width: 260px;
   box-shadow: 0 4px 16px rgba(0,0,0,0.18);
@@ -1669,6 +1911,28 @@ h2 {
   gap: 5px;
   line-height: 1.4;
   font-family: 'Pretendard', -apple-system, sans-serif;
+}
+.marker-overlay-close {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: none;
+  border: none;
+  font-size: 14px;
+  color: #bbb;
+  cursor: pointer;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  padding: 0;
+  line-height: 1;
+}
+.marker-overlay-close:hover {
+  background: #f0f0f0;
+  color: #666;
 }
 .marker-overlay-badge {
   display: inline-flex;
@@ -1693,6 +1957,17 @@ h2 {
   font-size: 12px;
   color: #666;
 }
+.marker-overlay-inner .marker-overlay-category {
+  margin: 0 !important;
+  font-size: 11px !important;
+  color: #999 !important;
+  line-height: 1.3;
+}
+.marker-overlay-inner .marker-overlay-jibun {
+  margin: -1px 0 0 18px !important;
+  font-size: 10px !important;
+  color: #bbb !important;
+}
 .marker-overlay-phone {
   color: #2eb872;
   text-decoration: none;
@@ -1700,13 +1975,20 @@ h2 {
 .marker-overlay-phone:hover {
   text-decoration: underline;
 }
-.marker-overlay-link {
-  color: #2eb872;
+.marker-overlay-detail-btn {
+  display: block;
+  margin-top: 4px;
+  padding: 6px 8px;
+  background: #fee500;
+  color: #3c1e1e;
   text-decoration: none;
   font-weight: 600;
+  font-size: 11px;
+  text-align: center;
+  border-radius: 6px;
 }
-.marker-overlay-link:hover {
-  text-decoration: underline;
+.marker-overlay-detail-btn:hover {
+  background: #fdd835;
 }
 .marker-overlay-arrow {
   width: 0;
@@ -1757,5 +2039,19 @@ h2 {
     font-size: 11px;
     padding: 2px 8px;
   }
+}
+
+/* 로드뷰 컨트롤 축소 */
+.clicked-place-img .rv_compass {
+  transform: scale(0.6) !important;
+  transform-origin: top right !important;
+}
+.clicked-place-img .rv_control_compass {
+  transform: scale(0.6) !important;
+  transform-origin: top right !important;
+}
+.clicked-place-img .rv_control_zoom {
+  transform: scale(0.7) !important;
+  transform-origin: bottom right !important;
 }
 </style>
