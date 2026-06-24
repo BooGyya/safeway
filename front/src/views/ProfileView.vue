@@ -34,6 +34,7 @@ const fontSizeOptions = [
   { value: 'small', label: '작게' },
   { value: 'medium', label: '보통' },
   { value: 'large', label: '크게' },
+  { value: 'xlarge', label: '더 크게' },
 ]
 
 const voiceTypeOptions = [
@@ -72,8 +73,9 @@ const displayName = (nickname, username) => {
 
 const applyFontSize = (size) => {
   const root = document.documentElement
-  if (size === 'small') root.style.setProperty('--base-font-size', '14px')
-  else if (size === 'large') root.style.setProperty('--base-font-size', '18px')
+  if (size === 'small') root.style.setProperty('--base-font-size', '13px')
+  else if (size === 'large') root.style.setProperty('--base-font-size', '20px')
+  else if (size === 'xlarge') root.style.setProperty('--base-font-size', '24px')
   else root.style.setProperty('--base-font-size', '16px')
 }
 

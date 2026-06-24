@@ -45,6 +45,7 @@ class User(AbstractUser):
         ('small', '작게'),
         ('medium', '보통'),
         ('large', '크게'),
+        ('xlarge', '더 크게'),
     ]
     font_size = models.CharField(
         max_length=10,
