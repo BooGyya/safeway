@@ -389,3 +389,20 @@ def admin_user_status(request, user_id):
         'is_active': target_user.is_active,
         'message': f'사용자 상태가 {"활성화" if is_active else "비활성화"}되었습니다.'
     })
+
+# 관리자 - 사용자 삭제
+@api_view(['DELETE'])
+@permission_classes([IsAdminUser])
+def admin_user_delete(request, user_id):
+    target_user = get_object_or_404(User, id=user_id)
+    
+    # 자기 자신은 삭제 불가
+    if target_user.id == request.user.id:
+        return Response(
+            {'error': '자기 자신은 삭제할 수 없습니다.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    username = target_user.username
+    target_user.delete()
+    return Response({'message': f'{username} 사용자가 삭제되었습니다.'})
