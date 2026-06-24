@@ -7,6 +7,22 @@ import { useRouter } from 'vue-router'
 import { useMapStore } from '@/stores/map'
 import { authAPI } from '@/api/auth'
 import { communityAPI } from '@/api/community'
+let originDebounceTimer = null
+let destDebounceTimer = null
+
+const onOriginInput = () => {
+  clearTimeout(originDebounceTimer)
+  originDebounceTimer = setTimeout(() => {
+    searchAddress(originQuery.value, 'origin')
+  }, 300)
+}
+
+const onDestInput = () => {
+  clearTimeout(destDebounceTimer)
+  destDebounceTimer = setTimeout(() => {
+    searchAddress(destQuery.value, 'dest')
+  }, 300)
+}
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -956,7 +972,7 @@ const formatSteps = (meters) => {
             v-model="originQuery"
             type="text"
             placeholder="출발지 검색"
-            @keyup="searchAddress(originQuery, 'origin')"
+            @input="searchAddress(originQuery, 'origin')"
           />
           <button v-if="originQuery" class="input-clear" @click="clearOrigin">✕</button>
           <ul v-if="originSuggestions.length" class="suggestions">
@@ -972,7 +988,7 @@ const formatSteps = (meters) => {
             v-model="destQuery"
             type="text"
             placeholder="목적지 검색"
-            @keyup="searchAddress(destQuery, 'dest')"
+            @input="searchAddress(destQuery, 'dest')"
           />
           <button v-if="destQuery" class="input-clear" @click="clearDest">✕</button>
           <ul v-if="destSuggestions.length" class="suggestions">
