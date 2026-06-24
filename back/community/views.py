@@ -339,6 +339,52 @@ def admin_reporter_ranking(request):
     return Response(result)
 
 
+# 관리자 - 위험구간 적용/해제
+@api_view(['POST'])
+@permission_classes([IsAdminUser])
+def admin_danger_apply(request, post_id):
+    post = get_object_or_404(Post, id=post_id)
+    if post.category not in ['danger', 'obstacle', 'broken', 'construction']:
+        return Response({'error': '위험 제보 게시글만 적용할 수 있습니다.'}, status=status.HTTP_400_BAD_REQUEST)
+    if not post.latitude or not post.longitude:
+        return Response({'error': '위치 정보가 없는 게시글입니다.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    post.is_trusted = not post.is_trusted
+    post.save()
+    action = '적용' if post.is_trusted else '해제'
+    return Response({
+        'message': f'위험구간이 {action}되었습니다.',
+        'is_trusted': post.is_trusted,
+        'post_id': post.id,
+    })
+
+
+# 확인된 위험구간 목록 (공개)
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def danger_zone_list(request):
+    zones = Post.objects.filter(
+        is_trusted=True,
+        latitude__isnull=False,
+        longitude__isnull=False,
+        category__in=['danger', 'obstacle', 'broken', 'construction'],
+    )
+    result = [
+        {
+            'id': z.id,
+            'title': z.title,
+            'category': z.category,
+            'category_label': dict(Post.CATEGORY_CHOICES).get(z.category, z.category),
+            'lat': float(z.latitude),
+            'lng': float(z.longitude),
+            'address': z.address,
+            'created_at': z.created_at.isoformat(),
+        }
+        for z in zones
+    ]
+    return Response(result)
+
+
 # ============================================================
 # 공지사항
 # ============================================================

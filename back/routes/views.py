@@ -162,10 +162,13 @@ def get_weather_info(lat, lng):
 
 def get_nearby(waypoints):
     """경로 주변 편의시설 정보 수집"""
+    from community.models import Post
+
     nearby = {
         'traffic_lights': [],
         'facilities': [],
         'support_centers': [],
+        'danger_zones': [],
     }
     if not waypoints:
         return nearby
@@ -233,6 +236,28 @@ def get_nearby(waypoints):
     nearby['traffic_lights'] = nearby['traffic_lights'][:20]
     nearby['facilities'] = nearby['facilities'][:20]
     nearby['support_centers'] = nearby['support_centers'][:10]
+
+    lats = [wp['lat'] for wp in waypoints]
+    lngs = [wp['lng'] for wp in waypoints]
+    danger_posts = Post.objects.filter(
+        is_trusted=True,
+        latitude__isnull=False,
+        longitude__isnull=False,
+        category__in=['danger', 'obstacle', 'broken', 'construction'],
+        latitude__range=(min(lats) - 0.005, max(lats) + 0.005),
+        longitude__range=(min(lngs) - 0.005, max(lngs) + 0.005),
+    )
+    for dp in danger_posts[:15]:
+        nearby['danger_zones'].append({
+            'id': dp.id,
+            'title': dp.title,
+            'category': dp.category,
+            'category_label': dict(Post.CATEGORY_CHOICES).get(dp.category, dp.category),
+            'lat': float(dp.latitude),
+            'lng': float(dp.longitude),
+            'address': dp.address,
+        })
+
     return nearby
 
 

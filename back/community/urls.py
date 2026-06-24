@@ -27,6 +27,12 @@ urlpatterns = [
     path('admin/posts/<int:post_id>/reliability/', views.admin_post_reliability, name='admin_post_reliability'),
     path('admin/ranking/', views.admin_reporter_ranking, name='admin_reporter_ranking'),
 
+    # 관리자 - 위험구간 적용/해제
+    path('admin/posts/<int:post_id>/danger-apply/', views.admin_danger_apply, name='admin_danger_apply'),
+
+    # 확인된 위험구간 목록 (공개 API)
+    path('danger-zones/', views.danger_zone_list, name='danger_zone_list'),
+
     # 공지사항
     path('notices/', views.notice_list, name='notice_list'),
     path('notices/create/', views.notice_create, name='notice_create'),
