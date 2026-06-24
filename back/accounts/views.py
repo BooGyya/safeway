@@ -360,6 +360,7 @@ def admin_user_list(request):
             'username': u.username,
             'email': u.email,
             'user_type': u.user_type,
+            'is_staff': u.is_staff,
             'is_active': u.is_active,
             'date_joined': u.date_joined,
         }

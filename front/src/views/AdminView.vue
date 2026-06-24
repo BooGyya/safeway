@@ -295,7 +295,7 @@ onMounted(() => {
                 <td>{{ u.id }}</td>
                 <td>{{ u.username }}</td>
                 <td>{{ u.email }}</td>
-                <td>{{ userTypeLabel[u.user_type] || u.user_type }}</td>
+                <td>{{ u.is_staff ? '관리자' : (userTypeLabel[u.user_type] || u.user_type) }}</td>
                 <td class="date-cell">{{ formatDate(u.date_joined) }}</td>
                 <td>
                   <button
