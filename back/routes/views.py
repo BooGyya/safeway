@@ -9,6 +9,7 @@ import math
 from .models import Route, RouteFavorite, RouteHistory
 from .serializers import RouteSerializer, RouteFavoriteSerializer, RouteHistorySerializer
 from infrastructure.models import TrafficLight, Facility, SupportCenter
+from django.utils import timezone
 
 def get_distance(lat1, lng1, lat2, lng2):
     R = 6371000
@@ -339,22 +340,35 @@ def search_route(request):
         nearby = get_nearby(wp1)
 
         if request.user.is_authenticated:
-            route = Route.objects.create(
+            existing = RouteHistory.objects.filter(
                 user=request.user,
-                origin_name=origin_name,
-                origin_lat=origin_lat,
-                origin_lng=origin_lng,
-                dest_name=dest_name,
-                dest_lat=dest_lat,
-                dest_lng=dest_lng,
-                distance=d1,
-                duration=dur1,
-                safety_score=safety_score,
-                waypoints=wp1,
-                weather_applied=is_bad_weather,
-                transport_type=transport_type,
-            )
-            RouteHistory.objects.create(user=request.user, route=route)
+                route__origin_name=origin_name,
+                route__dest_name=dest_name,
+                route__transport_type=transport_type,
+            ).first()
+
+            if existing:
+                # 기존 히스토리 날짜만 업데이트
+                existing.used_at = timezone.now()
+                existing.save()
+            else:
+                # 새 경로 + 히스토리 생성
+                route = Route.objects.create(
+                    user=request.user,
+                    origin_name=origin_name,
+                    origin_lat=origin_lat,
+                    origin_lng=origin_lng,
+                    dest_name=dest_name,
+                    dest_lat=dest_lat,
+                    dest_lng=dest_lng,
+                    distance=d1,
+                    duration=dur1,
+                    safety_score=safety_score,
+                    waypoints=wp1,
+                    weather_applied=is_bad_weather,
+                    transport_type=transport_type,
+                )
+                RouteHistory.objects.create(user=request.user, route=route)
 
         return Response({
             'routes': {
@@ -461,23 +475,37 @@ def search_route(request):
     nearby = get_nearby(waypoints)
 
     if request.user.is_authenticated:
-        route = Route.objects.create(
+        existing = RouteHistory.objects.filter(
             user=request.user,
-            origin_name=origin_name,
-            origin_lat=origin_lat,
-            origin_lng=origin_lng,
-            dest_name=dest_name,
-            dest_lat=dest_lat,
-            dest_lng=dest_lng,
-            distance=distance,
-            duration=duration,
-            safety_score=safety_score,
-            waypoints=waypoints,
-            weather_applied=is_bad_weather,
-            transport_type=transport_type,
-        )
-        RouteHistory.objects.create(user=request.user, route=route)
-        route_data = RouteSerializer(route).data
+            route__origin_name=origin_name,
+            route__dest_name=dest_name,
+            route__transport_type=transport_type,
+        ).first()
+
+        if existing:
+            # 기존 히스토리 날짜만 업데이트
+            existing.used_at = timezone.now()
+            existing.save()
+            route_data = RouteSerializer(existing.route).data
+        else:
+            # 새 경로 + 히스토리 생성
+            route = Route.objects.create(
+                user=request.user,
+                origin_name=origin_name,
+                origin_lat=origin_lat,
+                origin_lng=origin_lng,
+                dest_name=dest_name,
+                dest_lat=dest_lat,
+                dest_lng=dest_lng,
+                distance=distance,
+                duration=duration,
+                safety_score=safety_score,
+                waypoints=waypoints,
+                weather_applied=is_bad_weather,
+                transport_type=transport_type,
+            )
+            RouteHistory.objects.create(user=request.user, route=route)
+            route_data = RouteSerializer(route).data
     else:
         route_data = {
             'origin_name': origin_name,
@@ -568,7 +596,7 @@ def favorite_detail(request, favorite_id):
 def route_history(request):
     history = RouteHistory.objects.filter(
         user=request.user
-    ).select_related('route')[:20]
+    ).select_related('route').order_by('-used_at')[:20]
     serializer = RouteHistorySerializer(history, many=True)
     return Response(serializer.data)
 
