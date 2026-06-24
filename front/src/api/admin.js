@@ -9,6 +9,7 @@ export const adminAPI = {
   // 사용자 관리
   getUsers: () => api.get('/api/accounts/admin/users/'),
   updateUserStatus: (id, data) => api.patch(`/api/accounts/admin/users/${id}/`, data),
+  deleteUser: (id) => api.delete(`/api/accounts/admin/users/${id}/delete/`),
 
   // LLM 필터링 모니터링
   runFilterMonitor: () => api.post('/api/chatbot/admin/monitor/'),

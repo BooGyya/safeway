@@ -65,6 +65,16 @@ const toggleUserActive = async (user) => {
   } catch { alert('상태 변경에 실패했습니다.') }
 }
 
+const deleteUser = async (user) => {
+  if (!confirm(`${user.username} 사용자를 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) return
+  try {
+    await adminAPI.deleteUser(user.id)
+    users.value = users.value.filter(u => u.id !== user.id)
+  } catch (e) {
+    alert(e.response?.data?.error || '삭제에 실패했습니다.')
+  }
+}
+
 // LLM 필터링 모니터링
 const filterResults = ref([])
 const filterLoading = ref(false)
@@ -277,6 +287,7 @@ onMounted(() => {
                 <th>유형</th>
                 <th>가입일</th>
                 <th>상태</th>
+                <th>관리</th>
               </tr>
             </thead>
             <tbody>
@@ -293,6 +304,9 @@ onMounted(() => {
                   >
                     {{ u.is_active ? '활성' : '비활성' }}
                   </button>
+                </td>
+                <td>
+                    <button class="del-btn" @click="deleteUser(u)">삭제</button>
                 </td>
               </tr>
             </tbody>
