@@ -364,7 +364,7 @@ def search_route(request):
 
     # ===== 도보 경로 4가지 탐색 =====
     if transport_type == 'walk':
-        tmap1 = get_tmap_route(origin_lat, origin_lng, dest_lat, dest_lng, speed=user_speed, search_option='0')
+        tmap1 = get_tmap_route(origin_lat, origin_lng, dest_lat, dest_lng, speed=user_speed, search_option='30')
         tmap2 = get_tmap_route(origin_lat, origin_lng, dest_lat, dest_lng, speed=user_speed, search_option='10')
         tmap3 = get_tmap_route(origin_lat, origin_lng, dest_lat, dest_lng, speed=user_speed, search_option='4')
 
@@ -379,13 +379,6 @@ def search_route(request):
             dur1 = int(d1 / user_speed) if d1 else dur1
             dur2 = int(d2 / user_speed) if d2 else dur2
             dur3 = int(d3 / user_speed) if d3 else dur3
-
-        weather_msg = None
-        if is_bad_weather:
-            weather_msg = weather_messages.get(weather['weather'], '날씨가 좋지 않아요. 이동 시 주의하세요.')
-            dur_weather = int(dur1 * 1.2)
-        else:
-            dur_weather = dur1
 
         safety_score = calculate_safety_score(wp1, user_type)
 
@@ -424,41 +417,31 @@ def search_route(request):
                 )
                 RouteHistory.objects.create(user=request.user, route=route)
 
+        def build_route(label, wp, d, dur, score, nearby_data, cw_list):
+            return {
+                'label': label,
+                'waypoints': wp,
+                'distance': d,
+                'duration': dur,
+                'safety_score': score,
+                'nearby': nearby_data,
+                'crosswalk_count': len(cw_list) if cw_list else 0,
+            }
+
+        # 날씨추천: 비가 온다는 가정 (추천 경로 기준 20% 추가)
+        dur_rain = int(dur1 * 1.2)
+
         return Response({
             'routes': {
-                'recommend': {
-                    'label': '추천',
-                    'waypoints': wp1,
-                    'distance': d1,
-                    'duration': dur1,
-                    'safety_score': safety_score,
-                    'nearby': nearby1,
-                },
-                'stair_free': {
-                    'label': '계단회피',
-                    'waypoints': wp2 or wp1,
-                    'distance': d2 or d1,
-                    'duration': dur2 or dur1,
-                    'safety_score': calculate_safety_score(wp2 or wp1, user_type),
-                    'nearby': nearby2,
-                },
-                'main_road': {
-                    'label': '큰길우선',
-                    'waypoints': wp3 or wp1,
-                    'distance': d3 or d1,
-                    'duration': dur3 or dur1,
-                    'safety_score': calculate_safety_score(wp3 or wp1, user_type),
-                    'nearby': nearby3,
-                },
+                'recommend': build_route('추천', wp1, d1, dur1, safety_score, nearby1, cw1),
+                'stair_free': build_route('계단회피', wp2 or wp1, d2 or d1, dur2 or dur1,
+                    calculate_safety_score(wp2 or wp1, user_type), nearby2, cw2 or cw1),
+                'main_road': build_route('큰길우선', wp3 or wp1, d3 or d1, dur3 or dur1,
+                    calculate_safety_score(wp3 or wp1, user_type), nearby3, cw3 or cw1),
                 'weather': {
-                    'label': '날씨추천',
-                    'waypoints': wp1,
-                    'distance': d1,
-                    'duration': dur_weather,
-                    'safety_score': safety_score,
-                    'weather_applied': is_bad_weather,
-                    'message': weather_msg,
-                    'nearby': nearby1,
+                    **build_route('날씨추천', wp1, d1, dur_rain, safety_score, nearby1, cw1),
+                    'weather_applied': True,
+                    'message': '비가 올 경우 예상 소요시간입니다.',
                 },
             },
             'weather': weather,
