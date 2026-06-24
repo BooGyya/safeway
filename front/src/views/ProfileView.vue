@@ -232,7 +232,7 @@ const goToRoute = (fav) => {
     { name: fav.route.origin_name, lat: fav.route.origin_lat, lng: fav.route.origin_lng },
     { name: fav.route.dest_name, lat: fav.route.dest_lat, lng: fav.route.dest_lng }
   )
-  router.push('/')
+  router.push('/map')
 }
 
 const handleDeleteAccount = async () => {
@@ -240,7 +240,7 @@ const handleDeleteAccount = async () => {
   try {
     await authAPI.deleteAccount()
     await auth.logout()
-    router.push('/')
+    router.push('/map')
   } catch {
     alert('회원 탈퇴에 실패했습니다.')
   }

@@ -26,7 +26,7 @@ const handleSubmit = async () => {
     await authAPI.updateProfile(form.value)
     await auth.fetchProfile()
     alert('추가 정보가 저장되었습니다!')
-    router.push('/')
+    router.push('/map')
   } catch (e) {
     const d = e.response?.data
     errorMsg.value = d?.nickname?.[0] || '저장에 실패했습니다.'
