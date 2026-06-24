@@ -98,7 +98,7 @@ const routeDescriptions = {
   recommend: '가장 빠른 경로',
   stair_free: '계단 없는 경로',
   main_road: '대로 위주의 넓은 도로 경로',
-  weather: '현재 날씨를 반영한 경로',
+  weather: '비 올 때 예상 소요시간',
 }
 const currentNearby = computed(() => {
   if (!routeResult.value) return null
@@ -1057,10 +1057,10 @@ const formatSteps = (meters) => {
                 <span class="route-card-steps">{{ formatSteps(routeResult.routes[tab.key]?.distance) }} 걸음</span>
               </div>
               <div class="route-card-meta">
-                횡단보도 {{ routeResult.routes[tab.key]?.nearby?.traffic_lights?.length || 0 }}회
+                횡단보도 {{ routeResult.routes[tab.key]?.crosswalk_count || routeResult.routes[tab.key]?.nearby?.traffic_lights?.length || 0 }}회
               </div>
-              <div v-if="tab.key === 'weather' && routeResult.routes.weather?.message" class="route-card-weather-msg">
-                ⚠️ {{ routeResult.routes.weather.message }}
+              <div v-if="routeResult.routes[tab.key]?.message" class="route-card-weather-msg">
+                🌧️ {{ routeResult.routes[tab.key].message }}
               </div>
               <button v-if="activeRouteTab === tab.key" class="route-card-detail-btn" @click.stop="showRouteDetail = !showRouteDetail">
                 {{ showRouteDetail ? '접기' : '상세보기 >' }}
@@ -1479,9 +1479,7 @@ h2 {
   background: #e6f7ee;
   border-radius: 8px;
   font-size: calc(var(--base-font-size, 16px) - 3px);
-  color: #555;
 }
-
 /* 경로 카드 */
 .route-card {
   padding: 14px;
