@@ -22,7 +22,7 @@ onMounted(async () => {
       if (created) {
         router.push('/kakao/profile')  // 신규 유저 → 추가 정보 입력
       } else {
-        router.push('/')
+        router.push('/map')
       }
     } catch {
       alert('프로필 로드에 실패했습니다.')

@@ -200,7 +200,7 @@ const switchTab = (tab) => {
 onMounted(() => {
   if (!auth.isAdmin) {
     alert('관리자 권한이 필요합니다.')
-    router.push('/')
+    router.push('/map')
     return
   }
   fetchPosts()

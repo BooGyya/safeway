@@ -40,7 +40,7 @@ const displayName = (nickname, username) => {
 
       <!-- 데스크탑 네비 -->
       <nav class="nav desktop-nav">
-        <RouterLink to="/">지도</RouterLink>
+        <RouterLink to="/map">지도</RouterLink>
         <RouterLink to="/community">커뮤니티</RouterLink>
         <RouterLink to="/chatbot" v-if="auth.isLoggedIn">AI 챗봇</RouterLink>
       </nav>

@@ -18,7 +18,7 @@ const handleLogin = async () => {
   loading.value = true
   try {
     await auth.login(form.value)
-    router.push('/')
+    router.push('/map')
   } catch (e) {
     errorMsg.value = '아이디 또는 비밀번호가 올바르지 않습니다.'
   } finally {
