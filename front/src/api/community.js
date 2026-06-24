@@ -25,6 +25,10 @@ export const communityAPI = {
   followUser: (id) => api.post(`/api/community/users/${id}/follow/`),
   getFollowList: () => api.get('/api/community/follow/'),
 
+  // 위험구간
+  getDangerZones: () => api.get('/api/community/danger-zones/'),
+  adminDangerApply: (id) => api.post(`/api/community/admin/posts/${id}/danger-apply/`),
+
   // 공지사항
   getNotices: () => api.get('/api/community/notices/'),
   getNotice: (id) => api.get(`/api/community/notices/${id}/`),

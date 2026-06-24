@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
 import { useMapStore } from '@/stores/map'
 import { authAPI } from '@/api/auth'
+import { communityAPI } from '@/api/community'
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -20,14 +21,15 @@ let categoryMarkers = {}
 
 // 시설 카테고리
 const categories = [
-  { key: 'hospital', label: '병원', icon: '🏥', color: '#e53e3e' },
-  { key: 'pharmacy', label: '약국', icon: '💊', color: '#38a169' },
+  { key: 'hospital', label: '병원', icon: '🏥', color: '#4AADE8' },
+  { key: 'pharmacy', label: '약국', icon: '💊', color: '#F5C542' },
   { key: 'welfare', label: '복지시설', icon: '🏢', color: '#805ad5' },
   { key: 'elevator', label: '엘리베이터', icon: '🛗', color: '#2eb872' },
 ]
 const activeCategories = ref(new Set())
 let activeOverlay = null
 let pinnedOverlay = null
+let dangerZoneMarkers = []
 
 // 패널 모드
 const panelMode = ref('route')
@@ -69,6 +71,19 @@ const transportOptions = [
 const selectedUserType = ref('normal')
 const walkSpeed = ref(1.0)
 const showRouteDetail = ref(false)
+const activeRouteTab = ref('recommend')
+const routeTabs = [
+  { key: 'recommend', label: '추천' },
+  { key: 'stair_free', label: '계단회피' },
+  { key: 'main_road', label: '큰길우선' },
+  { key: 'weather', label: '날씨추천' },
+]
+const routeDescriptions = {
+  recommend: '가장 빠른 경로',
+  stair_free: '계단 없는 경로',
+  main_road: '대로 위주의 넓은 도로 경로',
+  weather: '현재 날씨를 반영한 경로',
+}
 const selectedDetailFacility = ref(null)
 let focusedMarker = null
 
@@ -99,6 +114,8 @@ onMounted(() => {
           }
           handleMapClick(mouseEvent.latLng)
         })
+
+        loadDangerZones()
 
         if (mapStore.pendingRoute) {
           const { origin, dest } = mapStore.pendingRoute
@@ -177,8 +194,14 @@ const searchRoute = async () => {
       walk_speed: walkSpeed.value,
     })
     routeResult.value = data
-    drawRoute(data)
-    fetchNearbyFacilities(data.route)
+    if (data.routes) {
+      activeRouteTab.value = 'recommend'
+      drawWalkRoute(data, 'recommend')
+    } else {
+      drawRoute(data)
+    }
+    const r = data.routes?.recommend || data.route
+    if (r) fetchNearbyFacilities(r)
   } catch {
     errorMsg.value = '경로 탐색에 실패했습니다.'
   } finally {
@@ -233,6 +256,57 @@ const drawRoute = (data) => {
   }
 }
 
+const drawWalkRoute = (data, tabKey) => {
+  clearMap()
+  const routeData = data.routes[tabKey]
+  if (!routeData) return
+
+  const waypoints = routeData.waypoints
+  const path = waypoints.map(p => new window.kakao.maps.LatLng(p.lat, p.lng))
+  const polyline = new window.kakao.maps.Polyline({
+    path,
+    strokeWeight: 7,
+    strokeColor: '#3366FF',
+    strokeOpacity: 0.9,
+  })
+  polyline.setMap(map)
+  polylines.push(polyline)
+
+  const first = waypoints[0]
+  const last = waypoints[waypoints.length - 1]
+  const originPos = new window.kakao.maps.LatLng(first.lat, first.lng)
+  const destPos = new window.kakao.maps.LatLng(last.lat, last.lng)
+
+  const originMarker = new window.kakao.maps.Marker({ position: originPos, map })
+  const destMarker = new window.kakao.maps.Marker({ position: destPos, map })
+  markers.push(originMarker, destMarker)
+
+  const originLabel = new window.kakao.maps.CustomOverlay({
+    content: '<div class="route-marker-label route-marker-origin">출발</div>',
+    position: originPos, yAnchor: 2.4, clickable: false,
+  })
+  const destLabel = new window.kakao.maps.CustomOverlay({
+    content: '<div class="route-marker-label route-marker-dest">도착</div>',
+    position: destPos, yAnchor: 2.4, clickable: false,
+  })
+  originLabel.setMap(map)
+  destLabel.setMap(map)
+  polylines.push(originLabel, destLabel)
+
+  const bounds = new window.kakao.maps.LatLngBounds()
+  path.forEach(p => bounds.extend(p))
+  map.setBounds(bounds)
+
+  if (data.nearby) drawNearbyMarkers(data.nearby)
+}
+
+const switchRouteTab = (tabKey) => {
+  activeRouteTab.value = tabKey
+  if (routeResult.value?.routes) {
+    drawWalkRoute(routeResult.value, tabKey)
+  }
+}
+
 const fetchNearbyFacilities = async (route) => {
   nearbyOriginFacilities.value = []
   nearbyDestFacilities.value = []
@@ -255,23 +329,98 @@ const fetchNearbyFacilities = async (route) => {
 }
 
 const drawNearbyMarkers = (nearby) => {
+  const greenMarkerImage = createCategoryMarkerImage('#2eb872')
   nearby.traffic_lights?.forEach(tl => {
     const marker = new window.kakao.maps.Marker({
       position: new window.kakao.maps.LatLng(tl.lat, tl.lng),
       map,
-      title: tl.name,
+      title: tl.road_nm || '신호등',
+      image: greenMarkerImage,
     })
     markers.push(marker)
   })
 
+  const grayMarkerImage = createCategoryMarkerImage('#cccccc')
   nearby.facilities?.forEach(f => {
     const marker = new window.kakao.maps.Marker({
       position: new window.kakao.maps.LatLng(f.lat, f.lng),
       map,
       title: f.name,
+      image: grayMarkerImage,
     })
     markers.push(marker)
   })
+
+  const dangerCategoryIcons = { danger: '⚠️', obstacle: '🚧', broken: '🔨', construction: '🏗️' }
+  const redMarkerImage = createCategoryMarkerImage('#e53e3e')
+  nearby.danger_zones?.forEach(dz => {
+    const position = new window.kakao.maps.LatLng(dz.lat, dz.lng)
+    const marker = new window.kakao.maps.Marker({
+      position,
+      map,
+      title: dz.title,
+      image: redMarkerImage,
+      zIndex: 50,
+    })
+    const overlay = createPlaceOverlay(
+      { name: dz.title, address: dz.address, category: dz.category_label },
+      { color: '#e53e3e', icon: dangerCategoryIcons[dz.category] || '⚠️', label: dz.category_label },
+      position
+    )
+    window.kakao.maps.event.addListener(marker, 'mouseover', () => {
+      if (activeOverlay && activeOverlay !== pinnedOverlay) activeOverlay.setMap(null)
+      overlay.setMap(map)
+      activeOverlay = overlay
+    })
+    window.kakao.maps.event.addListener(marker, 'mouseout', () => {
+      if (pinnedOverlay !== overlay) { overlay.setMap(null); if (activeOverlay === overlay) activeOverlay = null }
+    })
+    window.kakao.maps.event.addListener(marker, 'click', () => {
+      if (pinnedOverlay === overlay) { pinnedOverlay = null; overlay.setMap(null); activeOverlay = null; return }
+      if (pinnedOverlay) pinnedOverlay.setMap(null)
+      overlay.setMap(map); pinnedOverlay = overlay; activeOverlay = overlay
+    })
+    markers.push(marker)
+  })
+}
+
+const dangerCategoryIcons = { danger: '⚠️', obstacle: '🚧', broken: '🔨', construction: '🏗️' }
+
+const loadDangerZones = async () => {
+  dangerZoneMarkers.forEach(m => m.setMap(null))
+  dangerZoneMarkers = []
+  try {
+    const { data } = await communityAPI.getDangerZones()
+    const redMarkerImage = createCategoryMarkerImage('#e53e3e')
+    data.forEach(dz => {
+      if (!dz.lat || !dz.lng) return
+      const position = new window.kakao.maps.LatLng(dz.lat, dz.lng)
+      const marker = new window.kakao.maps.Marker({
+        position, map,
+        title: dz.title,
+        image: redMarkerImage,
+        zIndex: 50,
+      })
+      const overlay = createPlaceOverlay(
+        { name: dz.title, address: dz.address, category: dz.category_label },
+        { color: '#e53e3e', icon: dangerCategoryIcons[dz.category] || '⚠️', label: dz.category_label },
+        position
+      )
+      window.kakao.maps.event.addListener(marker, 'mouseover', () => {
+        if (activeOverlay && activeOverlay !== pinnedOverlay) activeOverlay.setMap(null)
+        overlay.setMap(map); activeOverlay = overlay
+      })
+      window.kakao.maps.event.addListener(marker, 'mouseout', () => {
+        if (pinnedOverlay !== overlay) { overlay.setMap(null); if (activeOverlay === overlay) activeOverlay = null }
+      })
+      window.kakao.maps.event.addListener(marker, 'click', () => {
+        if (pinnedOverlay === overlay) { pinnedOverlay = null; overlay.setMap(null); activeOverlay = null; return }
+        if (pinnedOverlay) pinnedOverlay.setMap(null)
+        overlay.setMap(map); pinnedOverlay = overlay; activeOverlay = overlay
+      })
+      dangerZoneMarkers.push(marker)
+    })
+  } catch { /* 무시 */ }
 }
 
 const createCategoryMarkerImage = (color) => {
@@ -458,8 +607,13 @@ const addFavorite = async () => {
   const nickname = prompt('즐겨찾기 이름을 입력하세요 (예: 집 → 회사)')
   if (!nickname) return
   try {
+    const routeId = routeResult.value.route?.id
+    if (!routeId) {
+      alert('도보 경로는 즐겨찾기가 자동 저장됩니다.')
+      return
+    }
     await routeAPI.addFavorite({
-      route_id: routeResult.value.route.id,
+      route_id: routeId,
       nickname
     })
     alert('즐겨찾기에 추가되었습니다! ⭐')
@@ -779,6 +933,10 @@ const formatDuration = (seconds) => {
 const formatDistance = (meters) => {
   return meters >= 1000 ? `${(meters/1000).toFixed(1)}km` : `${Math.round(meters)}m`
 }
+
+const formatSteps = (meters) => {
+  return Math.round((meters || 0) / 0.65).toLocaleString()
+}
 </script>
 
 <template>
@@ -846,43 +1004,71 @@ const formatDistance = (meters) => {
         </button>
 
         <div v-if="routeResult" class="route-result">
-          <h3>경로 정보</h3>
-          <div class="route-info">
-            <div class="info-item">
-              <span class="label">이동 수단</span>
-              <span class="value">{{ transportOptions.find(t => t.value === transportType)?.label }}</span>
+
+          <!-- 날씨 -->
+          <div v-if="routeResult.weather" class="weather-bar">
+            🌤 {{ routeResult.weather.description }} {{ routeResult.weather.temp }}°C
+          </div>
+
+          <!-- 도보: 경로 카드 목록 -->
+          <template v-if="routeResult.routes">
+            <div
+              v-for="tab in routeTabs"
+              :key="tab.key"
+              :class="['route-card', { active: activeRouteTab === tab.key }]"
+              @click="switchRouteTab(tab.key)"
+            >
+              <div class="route-card-label" :class="tab.key">{{ routeResult.routes[tab.key]?.label || tab.label }}</div>
+              <div class="route-card-desc">{{ routeDescriptions[tab.key] }}</div>
+              <div class="route-card-main">
+                <span class="route-card-time">{{ formatDuration(routeResult.routes[tab.key]?.duration) }}</span>
+                <span class="route-card-dist">{{ formatDistance(routeResult.routes[tab.key]?.distance) }}</span>
+                <span class="route-card-steps">{{ formatSteps(routeResult.routes[tab.key]?.distance) }} 걸음</span>
+              </div>
+              <div class="route-card-meta">
+                횡단보도 {{ routeResult.nearby?.traffic_lights?.length || 0 }}회
+              </div>
+              <div v-if="tab.key === 'weather' && routeResult.routes.weather?.message" class="route-card-weather-msg">
+                ⚠️ {{ routeResult.routes.weather.message }}
+              </div>
+              <button v-if="activeRouteTab === tab.key" class="route-card-detail-btn" @click.stop="showRouteDetail = !showRouteDetail">
+                {{ showRouteDetail ? '접기' : '상세보기 >' }}
+              </button>
             </div>
-            <div class="info-item">
-              <span class="label">거리</span>
-              <span class="value">{{ formatDistance(routeResult.route.distance) }}</span>
+          </template>
+
+          <!-- 버스/택시: 단일 경로 -->
+          <template v-else-if="routeResult.route">
+            <div class="route-card active">
+              <div class="route-card-main">
+                <span class="route-card-time">{{ formatDuration(routeResult.route.duration) }}</span>
+                <span class="route-card-dist">{{ formatDistance(routeResult.route.distance) }}</span>
+              </div>
+              <div class="route-card-meta">
+                안전 점수 {{ (routeResult.route.safety_score * 100).toFixed(0) }}점
+              </div>
             </div>
-            <div class="info-item">
-              <span class="label">예상 시간</span>
-              <span class="value">{{ formatDuration(routeResult.route.duration) }}</span>
-            </div>
-            <div class="info-item">
-              <span class="label">안전 점수</span>
-              <span class="value safety">{{ (routeResult.route.safety_score * 100).toFixed(0) }}점</span>
+          </template>
+
+          <!-- 위험구간 경고 -->
+          <div v-if="routeResult.nearby?.danger_zones?.length" class="danger-warning">
+            <div class="danger-warning-title">⚠️ 경로 주변 위험구간 {{ routeResult.nearby.danger_zones.length }}곳</div>
+            <div v-for="dz in routeResult.nearby.danger_zones" :key="dz.id" class="danger-zone-item">
+              <span class="danger-zone-icon">{{ { danger: '⚠️', obstacle: '🚧', broken: '🔨', construction: '🏗️' }[dz.category] || '⚠️' }}</span>
+              <div class="danger-zone-info">
+                <span class="danger-zone-name">{{ dz.title }}</span>
+                <span class="danger-zone-addr">{{ dz.address }}</span>
+              </div>
             </div>
           </div>
 
-          <div v-if="routeResult.weather" class="weather-info">
-            <p>🌤 {{ routeResult.weather.description }} {{ routeResult.weather.temp }}°C</p>
-            <p v-if="routeResult.weather_applied" class="weather-warning">
-              ⚠️ 악천후로 인해 이동시간이 20% 증가되었습니다.
-            </p>
+          <!-- 주변 시설 요약 -->
+          <div v-if="routeResult.nearby" class="nearby-summary">
+            <span>🚦 신호등 {{ routeResult.nearby.traffic_lights?.length || 0 }}개</span>
+            <span>♿ 편의시설 {{ routeResult.nearby.facilities?.length || 0 }}개</span>
           </div>
 
-          <div v-if="routeResult.nearby" class="nearby-info">
-            <p>🚦 신호등 {{ routeResult.nearby.traffic_lights?.length || 0 }}개</p>
-            <p>♿ 편의시설 {{ routeResult.nearby.facilities?.length || 0 }}개</p>
-            <p>🏥 지원센터 {{ routeResult.nearby.support_centers?.length || 0 }}개</p>
-          </div>
-
-          <button class="detail-toggle" @click="showRouteDetail = !showRouteDetail">
-            {{ showRouteDetail ? '상세 접기 ▲' : '경로 상세보기 ▼' }}
-          </button>
-
+          <!-- 상세보기 -->
           <div v-if="showRouteDetail && routeResult.nearby" class="route-detail-section">
             <div v-if="routeResult.nearby.facilities?.length" class="detail-group">
               <h4>♿ 주변 편의시설</h4>
@@ -899,30 +1085,11 @@ const formatDistance = (meters) => {
             <div v-if="routeResult.nearby.traffic_lights?.length" class="detail-group">
               <h4>🚦 주변 신호등</h4>
               <div v-for="tl in routeResult.nearby.traffic_lights" :key="tl.id" class="detail-item">
-                <span class="detail-item-name">{{ tl.road_nm || tl.name }}</span>
-                <span v-if="tl.has_audio" class="audio-badge">음향</span>
-              </div>
-            </div>
-            <div v-if="routeResult.nearby.support_centers?.length" class="detail-group">
-              <h4>🏥 이동지원센터</h4>
-              <div v-for="sc in routeResult.nearby.support_centers" :key="sc.id" class="detail-item">
-                <span class="detail-item-name">{{ sc.name }}</span>
-                <span class="detail-item-sub">{{ sc.phone }}</span>
-              </div>
-            </div>
-
-            <div v-if="nearbyOriginFacilities.length" class="detail-group">
-              <h4>📍 출발지 근처 시설</h4>
-              <div v-for="(f, i) in nearbyOriginFacilities" :key="'o'+i" class="detail-item">
-                <span class="detail-item-name">{{ f.name }}</span>
-                <span class="detail-item-type">{{ f.type }}</span>
-              </div>
-            </div>
-            <div v-if="nearbyDestFacilities.length" class="detail-group">
-              <h4>🏁 도착지 근처 시설</h4>
-              <div v-for="(f, i) in nearbyDestFacilities" :key="'d'+i" class="detail-item">
-                <span class="detail-item-name">{{ f.name }}</span>
-                <span class="detail-item-type">{{ f.type }}</span>
+                <span class="detail-item-name">{{ tl.road_nm }}</span>
+                <span class="detail-badges">
+                  <span v-if="tl.has_audio" class="audio-badge">음향신호기</span>
+                  <span v-if="tl.has_remndr" class="remndr-badge">잔여시간</span>
+                </span>
               </div>
             </div>
           </div>
@@ -1244,49 +1411,146 @@ h2 {
   font-size: calc(var(--base-font-size, 16px) - 3px);
 }
 .route-result {
-  background: #e6f7ee;
-  border-radius: 12px;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.route-result h3 {
-  font-size: var(--base-font-size, 16px);
-  font-weight: bold;
-  color: #333;
-}
-.route-info {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
-.info-item {
-  display: flex;
-  justify-content: space-between;
-  font-size: calc(var(--base-font-size, 16px) - 2px);
-}
-.label { color: #666; }
-.value { font-weight: bold; }
-.safety { color: #2eb872; }
-.weather-info {
+
+/* 날씨 바 */
+.weather-bar {
+  padding: 8px 12px;
+  background: #e6f7ee;
+  border-radius: 8px;
   font-size: calc(var(--base-font-size, 16px) - 3px);
   color: #555;
-  background: white;
-  padding: 10px;
-  border-radius: 8px;
 }
-.weather-warning {
-  color: orange;
-  margin-top: 4px;
-}
-.nearby-info {
-  background: white;
-  padding: 10px;
-  border-radius: 8px;
+
+/* 경로 카드 */
+.route-card {
+  padding: 14px;
+  background: #f8f9fa;
+  border: 2px solid transparent;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+.route-card:hover {
+  background: #e6f7ee;
+}
+.route-card.active {
+  background: white;
+  border-color: #2eb872;
+  box-shadow: 0 2px 8px rgba(46,184,114,0.15);
+}
+.route-card-label {
+  font-size: calc(var(--base-font-size, 16px) - 3px);
+  font-weight: 700;
+  color: #2eb872;
+}
+.route-card-label.stair_free { color: #805ad5; }
+.route-card-label.main_road { color: #3366FF; }
+.route-card-label.weather { color: #e65100; }
+.route-card-desc {
+  font-size: calc(var(--base-font-size, 16px) - 5px);
+  color: #aaa;
+}
+.route-card-main {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.route-card-time {
+  font-size: calc(var(--base-font-size, 16px) + 4px);
+  font-weight: 800;
+  color: #222;
+}
+.route-card-dist {
+  font-size: calc(var(--base-font-size, 16px) - 2px);
+  font-weight: 600;
+  color: #555;
+}
+.route-card-steps {
+  font-size: calc(var(--base-font-size, 16px) - 2px);
+  font-weight: 600;
+  color: #555;
+}
+.route-card-meta {
+  font-size: calc(var(--base-font-size, 16px) - 4px);
+  color: #999;
+}
+.route-card-weather-msg {
+  font-size: calc(var(--base-font-size, 16px) - 4px);
+  color: #e65100;
+  background: #fff3e0;
+  padding: 4px 8px;
+  border-radius: 6px;
+  margin-top: 2px;
+}
+.route-card-detail-btn {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  color: #2eb872;
+  font-size: calc(var(--base-font-size, 16px) - 3px);
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px 0;
+}
+.route-card-detail-btn:hover {
+  text-decoration: underline;
+}
+
+/* 위험구간 경고 */
+.danger-warning {
+  background: #fff0f0;
+  border: 1.5px solid #e53e3e;
+  border-radius: 10px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.danger-warning-title {
+  font-size: calc(var(--base-font-size, 16px) - 2px);
+  font-weight: 700;
+  color: #e53e3e;
+}
+.danger-zone-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 0;
+  border-top: 1px solid #fdd;
+}
+.danger-zone-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+.danger-zone-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.danger-zone-name {
+  font-size: calc(var(--base-font-size, 16px) - 3px);
+  font-weight: 600;
+  color: #333;
+}
+.danger-zone-addr {
+  font-size: calc(var(--base-font-size, 16px) - 4px);
+  color: #999;
+}
+
+/* 주변 시설 요약 */
+.nearby-summary {
+  display: flex;
+  gap: 12px;
+  padding: 8px 12px;
+  background: #f8f9fa;
+  border-radius: 8px;
   font-size: calc(var(--base-font-size, 16px) - 3px);
   color: #555;
 }
@@ -1784,6 +2048,10 @@ p.info-jibun {
   color: #888;
   font-size: calc(var(--base-font-size, 16px) - 4px);
 }
+.detail-badges {
+  display: flex;
+  gap: 4px;
+}
 .audio-badge {
   background: #2eb872;
   color: white;
@@ -1792,6 +2060,15 @@ p.info-jibun {
   font-size: calc(var(--base-font-size, 16px) - 5px);
   font-weight: 600;
 }
+.remndr-badge {
+  background: #3366FF;
+  color: white;
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-size: calc(var(--base-font-size, 16px) - 5px);
+  font-weight: 600;
+}
+
 
 /* 시설 카테고리 */
 .category-bar {

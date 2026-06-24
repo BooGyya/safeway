@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { adminAPI } from '@/api/admin'
+import { communityAPI } from '@/api/community'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
 
@@ -34,6 +35,14 @@ const toggleTrusted = async (post) => {
     const { data } = await adminAPI.updateReliability(post.id, { is_trusted: !post.is_trusted })
     post.is_trusted = data.is_trusted
   } catch { alert('변경에 실패했습니다.') }
+}
+
+const toggleDangerApply = async (post) => {
+  try {
+    const { data } = await communityAPI.adminDangerApply(post.id)
+    post.is_trusted = data.is_trusted
+    alert(data.message)
+  } catch { alert('위험구간 적용에 실패했습니다.') }
 }
 
 // 사용자 관리
@@ -218,27 +227,33 @@ onMounted(() => {
             <thead>
               <tr>
                 <th>ID</th>
+                <th>카테고리</th>
                 <th>제목</th>
                 <th>작성자</th>
-                <th>신뢰</th>
                 <th>작성일</th>
+                <th>위험구간</th>
                 <th>관리</th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="post in posts" :key="post.id">
                 <td>{{ post.id }}</td>
+                <td>
+                  <span class="category-label">{{ { danger: '⚠️ 위험', obstacle: '🚧 장애물', broken: '🔨 파손', construction: '🏗️ 공사', other: '📌 기타' }[post.category] || post.category }}</span>
+                </td>
                 <td class="title-cell">{{ post.title }}</td>
                 <td>{{ post.username }}</td>
+                <td class="date-cell">{{ formatDate(post.created_at) }}</td>
                 <td>
                   <button
-                    :class="['trust-btn', { trusted: post.is_trusted }]"
-                    @click="toggleTrusted(post)"
+                    v-if="['danger','obstacle','broken','construction'].includes(post.category) && post.latitude"
+                    :class="['danger-apply-btn', { applied: post.is_trusted }]"
+                    @click="toggleDangerApply(post)"
                   >
-                    {{ post.is_trusted ? '신뢰' : '미신뢰' }}
+                    {{ post.is_trusted ? '적용됨' : '적용' }}
                   </button>
+                  <span v-else class="no-location">-</span>
                 </td>
-                <td class="date-cell">{{ formatDate(post.created_at) }}</td>
                 <td>
                   <button class="del-btn" @click="deletePost(post.id)">삭제</button>
                 </td>
@@ -466,6 +481,27 @@ th, td {
   border-radius: 6px;
   cursor: pointer;
   font-size: calc(var(--base-font-size, 16px) - 4px);
+}
+.danger-apply-btn {
+  padding: 4px 12px;
+  background: #fff3e0;
+  color: #e65100;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: calc(var(--base-font-size, 16px) - 4px);
+  font-weight: 600;
+}
+.danger-apply-btn.applied {
+  background: #e53e3e;
+  color: white;
+}
+.category-label {
+  font-size: calc(var(--base-font-size, 16px) - 4px);
+  white-space: nowrap;
+}
+.no-location {
+  color: #ccc;
 }
 .edit-btn {
   padding: 4px 12px;
