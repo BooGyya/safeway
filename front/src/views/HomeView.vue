@@ -95,7 +95,7 @@ const routeTabs = [
   { key: 'weather', label: '날씨추천' },
 ]
 const routeDescriptions = {
-  recommend: '최단 거리 경로',
+  recommend: 'TMAP 추천 알고리즘 경로',
   stair_free: '계단 없는 경로',
   main_road: '대로 위주의 넓은 도로 경로',
   weather: '비 올 때 예상 소요시간',
