@@ -95,11 +95,25 @@ const routeTabs = [
   { key: 'weather', label: '날씨추천' },
 ]
 const routeDescriptions = {
-  recommend: '가장 빠른 경로',
+  recommend: 'TMAP 추천 알고리즘 경로',
   stair_free: '계단 없는 경로',
   main_road: '대로 위주의 넓은 도로 경로',
   weather: '현재 날씨를 반영한 경로',
 }
+const fastestRouteKey = computed(() => {
+  if (!routeResult.value?.routes) return null
+  let best = null
+  let bestDuration = Infinity
+  for (const key of ['recommend', 'stair_free', 'main_road']) {
+    const duration = routeResult.value.routes[key]?.duration
+    if (duration != null && duration < bestDuration) {
+      bestDuration = duration
+      best = key
+    }
+  }
+  return best
+})
+const transitModeIcon = (mode) => ({ WALK: '🚶', BUS: '🚌', SUBWAY: '🚇' }[mode] || '🚏')
 const currentNearby = computed(() => {
   if (!routeResult.value) return null
   if (routeResult.value.routes) {
@@ -1052,7 +1066,10 @@ const formatSteps = (meters) => {
               :class="['route-card', { active: activeRouteTab === tab.key }]"
               @click="switchRouteTab(tab.key)"
             >
-              <div class="route-card-label" :class="tab.key">{{ routeResult.routes[tab.key]?.label || tab.label }}</div>
+              <div class="route-card-label" :class="tab.key">
+                {{ routeResult.routes[tab.key]?.label || tab.label }}
+                <span v-if="tab.key === fastestRouteKey" class="fastest-badge">최단시간</span>
+              </div>
               <div class="route-card-desc">{{ routeDescriptions[tab.key] }}</div>
               <div class="route-card-main">
                 <span class="route-card-time">{{ formatDuration(routeResult.routes[tab.key]?.duration) }}</span>
@@ -1060,6 +1077,7 @@ const formatSteps = (meters) => {
                 <span class="route-card-steps">{{ formatSteps(routeResult.routes[tab.key]?.distance) }} 걸음</span>
               </div>
               <div class="route-card-meta">
+                안전 점수 {{ ((routeResult.routes[tab.key]?.safety_score ?? 0) * 100).toFixed(0) }}점 ·
                 횡단보도 {{ routeResult.routes[tab.key]?.nearby?.traffic_lights?.length || 0 }}회
               </div>
               <div v-if="tab.key === 'weather' && routeResult.routes.weather?.message" class="route-card-weather-msg">
@@ -1078,8 +1096,22 @@ const formatSteps = (meters) => {
                 <span class="route-card-time">{{ formatDuration(routeResult.route.duration) }}</span>
                 <span class="route-card-dist">{{ formatDistance(routeResult.route.distance) }}</span>
               </div>
-              <div class="route-card-meta">
+              <div v-if="routeResult.route.safety_score != null" class="route-card-meta">
                 안전 점수 {{ (routeResult.route.safety_score * 100).toFixed(0) }}점
+              </div>
+              <div v-if="routeResult.transit_steps?.length" class="transit-steps">
+                <div v-for="(step, idx) in routeResult.transit_steps" :key="idx" class="transit-step">
+                  <span class="transit-step-icon">{{ transitModeIcon(step.mode) }}</span>
+                  <span class="transit-step-text">
+                    <template v-if="step.mode === 'WALK'">
+                      도보 {{ formatDistance(step.distance) }} ({{ step.start_name }} → {{ step.end_name }})
+                    </template>
+                    <template v-else>
+                      {{ step.route }} · {{ step.start_name }} → {{ step.end_name }}
+                    </template>
+                  </span>
+                  <span class="transit-step-time">{{ formatDuration(step.duration) }}</span>
+                </div>
               </div>
             </div>
           </template>
@@ -1513,6 +1545,17 @@ h2 {
 .route-card-label.stair_free { color: #805ad5; }
 .route-card-label.main_road { color: #3366FF; }
 .route-card-label.weather { color: #e65100; }
+.fastest-badge {
+  display: inline-block;
+  font-size: calc(var(--base-font-size, 16px) - 6px);
+  font-weight: 700;
+  color: #fff;
+  background: #ff7043;
+  border-radius: 8px;
+  padding: 1px 6px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
 .route-card-desc {
   font-size: calc(var(--base-font-size, 16px) - 5px);
   color: #aaa;
@@ -1540,6 +1583,31 @@ h2 {
 .route-card-meta {
   font-size: calc(var(--base-font-size, 16px) - 4px);
   color: #999;
+}
+.transit-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #eee;
+}
+.transit-step {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: calc(var(--base-font-size, 16px) - 3px);
+  color: #444;
+}
+.transit-step-icon {
+  flex-shrink: 0;
+}
+.transit-step-text {
+  flex: 1;
+}
+.transit-step-time {
+  color: #999;
+  font-size: calc(var(--base-font-size, 16px) - 4px);
 }
 .route-card-weather-msg {
   font-size: calc(var(--base-font-size, 16px) - 4px);

@@ -124,27 +124,25 @@ def get_kakao_car_route(origin_lat, origin_lng, dest_lat, dest_lng):
         return None
 
 
-def calculate_safety_score(waypoints, user_type):
-    if not waypoints:
-        return 0.5
-    lats = [wp['lat'] for wp in waypoints]
-    lngs = [wp['lng'] for wp in waypoints]
-    min_lat, max_lat = min(lats), max(lats)
-    min_lng, max_lng = min(lngs), max(lngs)
-    padding = 0.001
-    lights = TrafficLight.objects.filter(
-        lat__range=(min_lat - padding, max_lat + padding),
-        lng__range=(min_lng - padding, max_lng + padding),
-    )
-    total = lights.count()
-    if total == 0:
-        return 0.5
-    audio_count = lights.filter(has_audio=True).count()
-    remndr_count = lights.filter(has_remndr=True).count()
-    if user_type == 'disabled':
-        score = (audio_count / total) * 0.7 + (remndr_count / total) * 0.3
-    else:
-        score = (audio_count / total) * 0.4 + (remndr_count / total) * 0.6
+def calculate_safety_score(traffic_lights, danger_zones, distance, user_type):
+    """안전도 점수: 횡단 횟수/장비, 이동 거리, 관리자 확인 위험구간을 반영해 1.0에서 감점"""
+    score = 1.0
+
+    # 횡단보도 1건당 감점. 보조 신호(음향/잔여시간)가 없으면 더 크게 감점
+    for tl in traffic_lights or []:
+        if user_type == 'disabled':
+            equipped = tl.get('has_audio')
+        else:
+            equipped = tl.get('has_audio') or tl.get('has_remndr')
+        score -= 0.03 if equipped else 0.08
+
+    # 이동 거리가 길수록 외부 노출 시간이 늘어나 감점 (500m당 -0.02)
+    if distance:
+        score -= (distance / 500) * 0.02
+
+    # 관리자가 확인한 위험구간 1건당 큰 감점
+    score -= len(danger_zones or []) * 0.15
+
     return round(max(0.0, min(1.0, score)), 2)
 
 
@@ -387,11 +385,13 @@ def search_route(request):
         else:
             dur_weather = dur1
 
-        safety_score = calculate_safety_score(wp1, user_type)
-
         nearby1 = get_nearby(wp1, cw1)
         nearby2 = get_nearby(wp2 or wp1, cw2 or cw1)
         nearby3 = get_nearby(wp3 or wp1, cw3 or cw1)
+
+        safety_score = calculate_safety_score(nearby1['traffic_lights'], nearby1['danger_zones'], d1, user_type)
+        safety_score2 = calculate_safety_score(nearby2['traffic_lights'], nearby2['danger_zones'], d2 or d1, user_type)
+        safety_score3 = calculate_safety_score(nearby3['traffic_lights'], nearby3['danger_zones'], d3 or d1, user_type)
 
         if request.user.is_authenticated:
             existing = RouteHistory.objects.filter(
@@ -439,7 +439,7 @@ def search_route(request):
                     'waypoints': wp2 or wp1,
                     'distance': d2 or d1,
                     'duration': dur2 or dur1,
-                    'safety_score': calculate_safety_score(wp2 or wp1, user_type),
+                    'safety_score': safety_score2,
                     'nearby': nearby2,
                 },
                 'main_road': {
@@ -447,7 +447,7 @@ def search_route(request):
                     'waypoints': wp3 or wp1,
                     'distance': d3 or d1,
                     'duration': dur3 or dur1,
-                    'safety_score': calculate_safety_score(wp3 or wp1, user_type),
+                    'safety_score': safety_score3,
                     'nearby': nearby3,
                 },
                 'weather': {
@@ -471,6 +471,8 @@ def search_route(request):
     duration = 0
     route_error = None
 
+    transit_steps = []
+
     if transport_type == 'bus':
         tmap_data = get_tmap_transit_route(origin_lat, origin_lng, dest_lat, dest_lng)
         if not tmap_data or not tmap_data.get('metaData'):
@@ -485,21 +487,37 @@ def search_route(request):
                 for leg in best.get('legs', []):
                     start = leg.get('start', {})
                     end = leg.get('end', {})
+                    mode = leg.get('mode', 'WALK')
+
+                    transit_steps.append({
+                        'mode': mode,
+                        'route': leg.get('route', ''),
+                        'route_color': leg.get('routeColor', ''),
+                        'start_name': start.get('name', ''),
+                        'end_name': end.get('name', ''),
+                        'distance': leg.get('distance', 0),
+                        'duration': leg.get('sectionTime', 0),
+                    })
+
                     if start.get('lat') and start.get('lon'):
                         waypoints.append({'lat': start['lat'], 'lng': start['lon']})
-                    for step in leg.get('steps', []):
-                        linestring = step.get('linestring', '')
-                        if linestring:
-                            for coord in linestring.split(' '):
-                                parts = coord.split(',')
-                                if len(parts) == 2:
-                                    try:
-                                        waypoints.append({
-                                            'lat': float(parts[1]),
-                                            'lng': float(parts[0]),
-                                        })
-                                    except ValueError:
-                                        pass
+
+                    # 도보 구간은 steps[].linestring, 버스/지하철 구간은 passShape.linestring 에 좌표가 들어있음
+                    linestrings = [step.get('linestring', '') for step in leg.get('steps', [])]
+                    if leg.get('passShape', {}).get('linestring'):
+                        linestrings.append(leg['passShape']['linestring'])
+                    for linestring in linestrings:
+                        for coord in linestring.split(' '):
+                            parts = coord.split(',')
+                            if len(parts) == 2:
+                                try:
+                                    waypoints.append({
+                                        'lat': float(parts[1]),
+                                        'lng': float(parts[0]),
+                                    })
+                                except ValueError:
+                                    pass
+
                     if end.get('lat') and end.get('lon'):
                         waypoints.append({'lat': end['lat'], 'lng': end['lon']})
             else:
@@ -528,8 +546,11 @@ def search_route(request):
     if is_bad_weather:
         duration = int(duration * 1.2)
 
-    safety_score = calculate_safety_score(waypoints, user_type)
     nearby = get_nearby(waypoints)
+    # 택시는 차량 이동이라 보행자 신호/횡단 기준 안전도가 의미 없어 점수를 매기지 않음
+    safety_score = None if transport_type == 'taxi' else calculate_safety_score(
+        nearby['traffic_lights'], nearby['danger_zones'], distance, user_type
+    )
 
     if request.user.is_authenticated:
         existing = RouteHistory.objects.filter(
@@ -556,7 +577,7 @@ def search_route(request):
                 dest_lng=dest_lng,
                 distance=distance,
                 duration=duration,
-                safety_score=safety_score,
+                safety_score=safety_score if safety_score is not None else 0,
                 waypoints=waypoints,
                 weather_applied=is_bad_weather,
                 transport_type=transport_type,
@@ -578,12 +599,16 @@ def search_route(request):
             'weather_applied': is_bad_weather,
         }
 
+    if transport_type == 'taxi':
+        route_data['safety_score'] = None
+
     return Response({
         'route': route_data,
         'weather': weather,
         'weather_applied': is_bad_weather,
         'nearby': nearby,
         'transport_type': transport_type,
+        'transit_steps': transit_steps,
     }, status=status.HTTP_201_CREATED)
 
 
