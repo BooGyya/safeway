@@ -1,11 +1,16 @@
 <script setup>
 import { ref, nextTick, onMounted } from 'vue'
 import { chatbotAPI } from '@/api/chatbot'
+import { useRouter } from 'vue-router'
+import { useMapStore } from '@/stores/map'
+
+const router = useRouter()
+const mapStore = useMapStore()
 
 const messages = ref([
   {
     role: 'assistant',
-    content: '안녕하세요! SafeWay AI 챗봇입니다. 교통약자 이동 관련 질문을 도와드릴게요 😊'
+    content: '안녕하세요! SafeWay AI 챗봇입니다. 교통약자 이동 관련 질문을 도와드릴게요 😊\n\n현재 위치를 공유하시면 더 정확한 주변 시설 안내가 가능합니다!'
   }
 ])
 const input = ref('')
@@ -14,11 +19,34 @@ const chatBox = ref(null)
 const activeTab = ref('chat')
 const history = ref([])
 
+// 현재 위치
+const userLat = ref(null)
+const userLng = ref(null)
+const locationGranted = ref(false)
+
 const scrollToBottom = async () => {
   await nextTick()
   if (chatBox.value) {
     chatBox.value.scrollTop = chatBox.value.scrollHeight
   }
+}
+
+// 위치 권한 요청
+const requestLocation = () => {
+  if (!navigator.geolocation) return
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      userLat.value = pos.coords.latitude
+      userLng.value = pos.coords.longitude
+      locationGranted.value = true
+      messages.value.push({
+        role: 'assistant',
+        content: '📍 현재 위치를 받았어요! 이제 주변 시설을 정확하게 안내해드릴 수 있어요.'
+      })
+      scrollToBottom()
+    },
+    () => { locationGranted.value = false }
+  )
 }
 
 const fetchHistory = async () => {
@@ -30,8 +58,20 @@ const fetchHistory = async () => {
   }
 }
 
+const clearHistory = async () => {
+  if (!confirm('대화 기록을 모두 삭제하시겠습니까?')) return
+  try {
+    await chatbotAPI.deleteHistory()
+    history.value = []
+  } catch {
+    alert('삭제에 실패했습니다.')
+  }
+}
+
 onMounted(() => {
   fetchHistory()
+  // 자동으로 위치 요청
+  requestLocation()
 })
 
 const sendMessage = async () => {
@@ -45,14 +85,35 @@ const sendMessage = async () => {
 
   loading.value = true
   try {
-    const history = messages.value.slice(-10).map(m => ({
-      role: m.role,
-      content: m.content
-    }))
+    const { data } = await chatbotAPI.chat(
+      userMessage,
+      [],  // 백엔드에서 DB 히스토리 직접 로드
+      userLat.value,
+      userLng.value,
+    )
 
-    const { data } = await chatbotAPI.chat(userMessage, history)
     messages.value.push({ role: 'assistant', content: data.message })
     await scrollToBottom()
+
+    // 경로 탐색 액션 처리
+    if (data.action?.type === 'route') {
+      const { origin, dest } = data.action
+      setTimeout(async () => {
+        // 카카오 API로 좌표 조회 후 지도로 이동
+        const originResult = await resolvePlace(origin)
+        const destResult = await resolvePlace(dest)
+        if (originResult && destResult) {
+          messages.value.push({
+            role: 'assistant',
+            content: `🗺️ 지도에서 "${origin} → ${dest}" 경로를 탐색할게요!`
+          })
+          await scrollToBottom()
+          mapStore.setPendingRoute({ origin: originResult, dest: destResult })
+          router.push('/')
+        }
+      }, 1000)
+    }
+
     fetchHistory()
   } catch {
     messages.value.push({
@@ -63,6 +124,17 @@ const sendMessage = async () => {
     loading.value = false
     await scrollToBottom()
   }
+}
+
+// 장소명 → 좌표 변환 (카카오 API)
+const resolvePlace = async (placeName) => {
+  try {
+    const { data } = await chatbotAPI.searchAddress(placeName)
+    if (data && data.length > 0) {
+      return data[0]
+    }
+  } catch { /* ignore */ }
+  return null
 }
 
 const formatDate = (dateStr) => {
@@ -87,12 +159,22 @@ const formatDate = (dateStr) => {
         >💬 채팅</button>
         <button
           :class="['tab-btn', { active: activeTab === 'history' }]"
-          @click="activeTab = 'history'"
+          @click="activeTab = 'history'; fetchHistory()"
         >🕐 히스토리</button>
       </div>
 
       <!-- 채팅 탭 -->
       <template v-if="activeTab === 'chat'">
+
+        <!-- 위치 안내 바 -->
+        <div v-if="!locationGranted" class="location-bar">
+          <span>📍 위치를 공유하면 주변 시설을 정확히 안내해드려요</span>
+          <button class="location-btn" @click="requestLocation">위치 공유</button>
+        </div>
+        <div v-else class="location-bar granted">
+          <span>✅ 현재 위치 연동됨</span>
+        </div>
+
         <div ref="chatBox" class="chat-box">
           <div
             v-for="(msg, idx) in messages"
@@ -116,10 +198,11 @@ const formatDate = (dateStr) => {
         <div class="suggestions">
           <button
             v-for="q in [
-              '근처 엘리베이터 어디있어?',
-              '휠체어 이용 가능한 경로 알려줘',
+              '근처 복지시설 어디있어?',
+              '강남역에서 서울시청 가는 길',
               '음향신호기 있는 횡단보도 찾아줘',
-              '교통약자 지원센터 위치 알려줘'
+              '오늘 날씨에 이동해도 괜찮아?',
+              '근처 엘리베이터 알려줘',
             ]"
             :key="q"
             @click="input = q; sendMessage()"
@@ -146,6 +229,12 @@ const formatDate = (dateStr) => {
       <!-- 히스토리 탭 -->
       <template v-if="activeTab === 'history'">
         <div class="history-box">
+          <div class="history-top">
+            <span class="history-count">총 {{ history.length }}개</span>
+            <button v-if="history.length > 0" class="clear-btn" @click="clearHistory">
+              🗑️ 전체 삭제
+            </button>
+          </div>
           <div v-if="history.length === 0" class="empty">
             아직 대화 기록이 없어요.
           </div>
@@ -214,6 +303,33 @@ const formatDate = (dateStr) => {
   color: white;
   border-color: #2eb872;
 }
+
+/* 위치 바 */
+.location-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  background: #fff3e0;
+  border-radius: 10px;
+  font-size: calc(var(--base-font-size, 16px) - 3px);
+  color: #e65100;
+}
+.location-bar.granted {
+  background: #e6f7ee;
+  color: #2eb872;
+}
+.location-btn {
+  padding: 4px 12px;
+  background: #e65100;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: calc(var(--base-font-size, 16px) - 4px);
+  font-weight: 600;
+}
+
 .chat-box {
   background: white;
   border-radius: 16px;
@@ -316,6 +432,28 @@ const formatDate = (dateStr) => {
   padding: 24px;
   min-height: 480px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.history-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.history-count {
+  font-size: calc(var(--base-font-size, 16px) - 3px);
+  color: #aaa;
+}
+.clear-btn {
+  padding: 6px 14px;
+  background: #fff0f0;
+  color: #e53e3e;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: calc(var(--base-font-size, 16px) - 4px);
+  font-weight: 600;
 }
 .history-list {
   display: flex;
