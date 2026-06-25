@@ -8,7 +8,8 @@ import math
 
 from .models import Route, RouteFavorite, RouteHistory
 from .serializers import RouteSerializer, RouteFavoriteSerializer, RouteHistorySerializer
-from infrastructure.models import TrafficLight, SupportCenter
+from infrastructure.models import TrafficLight, SupportCenter, V2XIntersection
+from infrastructure.views import fetch_realtime_pedestrian_signal
 from django.utils import timezone
 
 def get_distance(lat1, lng1, lat2, lng2):
@@ -197,6 +198,17 @@ def get_nearby(waypoints, crosswalks=None):
                 closest = min(lights, key=lambda l: abs(l.lat - lat) + abs(l.lng - lng))
                 if closest.id not in seen_lights:
                     seen_lights.add(closest.id)
+
+                    # V2X 설치 교차로가 근처(~50m)에 있으면 실시간 보행신호 잔여시간 조회
+                    realtime_pedestrian = None
+                    v2x_candidates = V2XIntersection.objects.filter(
+                        lat__range=(lat - MATCH_RADIUS, lat + MATCH_RADIUS),
+                        lng__range=(lng - MATCH_RADIUS, lng + MATCH_RADIUS),
+                    )
+                    if v2x_candidates.exists():
+                        nearest_v2x = min(v2x_candidates, key=lambda v: abs(v.lat - lat) + abs(v.lng - lng))
+                        realtime_pedestrian = fetch_realtime_pedestrian_signal(nearest_v2x.itst_id)
+
                     nearby['traffic_lights'].append({
                         'id': closest.id,
                         'road_nm': closest.road_nm,
@@ -205,6 +217,7 @@ def get_nearby(waypoints, crosswalks=None):
                         'lng': closest.lng,
                         'has_audio': closest.has_audio,
                         'has_remndr': closest.has_remndr,
+                        'realtime_pedestrian': realtime_pedestrian,
                     })
 
     # 병원/약국: 경로를 따라 300m 반경 카카오 API

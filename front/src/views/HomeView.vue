@@ -1410,6 +1410,11 @@ const formatSteps = (meters) => {
                   <span v-if="tl.has_audio" class="audio-badge">음향신호기</span>
                   <span v-if="tl.has_remndr" class="remndr-badge">보행 잔여 시간</span>
                 </span>
+                <span v-if="tl.realtime_pedestrian" class="realtime-signal">
+                  <span v-for="(sec, dir) in tl.realtime_pedestrian" :key="dir">
+                    🔴 실시간 보행신호 {{ dir }} {{ sec }}초 남음
+                  </span>
+                </span>
               </div>
             </div>
             <div v-if="currentNearby.hospitals?.length" class="detail-group">
@@ -2369,6 +2374,13 @@ p.info-jibun {
   font-size: calc(var(--base-font-size, 16px) - 4px);
   font-weight: 600;
   white-space: nowrap;
+}
+.realtime-signal {
+  display: block;
+  margin-top: 4px;
+  color: #e53e3e;
+  font-size: calc(var(--base-font-size, 16px) - 4px);
+  font-weight: 700;
 }
 
 

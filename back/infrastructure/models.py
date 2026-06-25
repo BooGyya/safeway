@@ -97,6 +97,22 @@ class Elevator(models.Model):
         return f'{self.building_nm} {self.install_place}'
 
 
+class V2XIntersection(models.Model):
+    """서울 V2X 신호제어기 설치 교차로 (실시간 신호 잔여시간 조회용 itstId 매핑)"""
+    itst_id = models.CharField(max_length=20, unique=True)
+    name = models.CharField(max_length=100, blank=True)
+    lat = models.FloatField()
+    lng = models.FloatField()
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['lat', 'lng']),
+        ]
+
+    def __str__(self):
+        return f'{self.name} ({self.itst_id})'
+
+
 class SupportCenter(models.Model):
     name = models.CharField(max_length=100)       # 센터명
     sido = models.CharField(max_length=20, blank=True)

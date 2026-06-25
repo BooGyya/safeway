@@ -63,7 +63,38 @@ def audio_traffic_lights(request):
     return Response(serializer.data)
 
 
-# 실시간 신호 잔여시간 조회 (서울 C-ITS)
+def fetch_realtime_pedestrian_signal(itst_id):
+    """itstId로 V2X 실시간 보행신호 잔여시간(초) 조회. 방향별 dict 또는 None."""
+    API_KEY = os.getenv('SEOUL_TDATA_API_KEY')
+    BASE_URL = 'http://t-data.seoul.go.kr/apig/apiman-gateway/tapi/v2xSignalPhaseTimingInformation/1.0'
+    DIRECTIONS = {
+        'nt': '북쪽', 'et': '동쪽',
+        'st': '남쪽', 'wt': '서쪽',
+        'ne': '북동', 'se': '남동',
+        'sw': '남서', 'nw': '북서',
+    }
+    try:
+        response = requests.get(
+            BASE_URL,
+            params={'apikey': API_KEY, 'type': 'json', 'numOfRows': 1, 'itstId': itst_id},
+            timeout=5,
+        )
+        data = response.json()
+        if not data:
+            return None
+        item = data[0]
+
+        result = {}
+        for prefix, direction in DIRECTIONS.items():
+            value = item.get(f"{prefix}PdsgRmdrCs")
+            if value:
+                result[direction] = round(float(value) / 100, 1)
+        return result or None
+    except Exception:
+        return None
+
+
+# 실시간 신호 잔여시간 조회 (서울 V2X)
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def realtime_signal(request):
@@ -75,50 +106,14 @@ def realtime_signal(request):
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    API_KEY = os.getenv('SEOUL_API_KEY')
-    BASE_URL = 'http://t-data.seoul.go.kr/apig/apiman-gateway/tapi/v2xSignalPhaseTimingInformation/1.0'
+    result = fetch_realtime_pedestrian_signal(itst_id)
+    if result is None:
+        return Response({'error': '신호 정보 없음'}, status=status.HTTP_404_NOT_FOUND)
 
-    params = {
-        'apiKey': API_KEY,
-        'type': 'json',
-        'numOfRows': 1,
-        'itstId': itst_id,
-    }
-
-    try:
-        response = requests.get(BASE_URL, params=params, timeout=3)
-        data = response.json()
-
-        if not data.get('body'):
-            return Response({'error': '신호 정보 없음'}, status=status.HTTP_404_NOT_FOUND)
-
-        item = data['body'][0]
-
-        # 보행신호 잔여시간 파싱 (센티초 → 초)
-        DIRECTIONS = {
-            'nt': '북쪽', 'et': '동쪽',
-            'st': '남쪽', 'wt': '서쪽',
-            'ne': '북동', 'se': '남동',
-            'sw': '남서', 'nw': '북서',
-        }
-
-        result = {}
-        for prefix, direction in DIRECTIONS.items():
-            field = f"{prefix}PdsgRmdrCs"
-            value = item.get(field)
-            if value:
-                result[direction] = round(int(value) / 10, 1)
-
-        return Response({
-            'itst_id': itst_id,
-            'pedestrian_signals': result
-        })
-
-    except Exception as e:
-        return Response(
-            {'error': f'신호 조회 실패: {str(e)}'},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+    return Response({
+        'itst_id': itst_id,
+        'pedestrian_signals': result
+    })
 
 
 # 주변 장애인 편의시설 조회
