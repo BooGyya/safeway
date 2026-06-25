@@ -13,6 +13,8 @@ const comments = ref([])
 const newComment = ref('')
 const loading = ref(false)
 const isFollowing = ref(false)
+const editingCommentId = ref(null)
+const editContent = ref('')
 
 const categoryLabel = {
   danger: '⚠️ 위험',
@@ -84,6 +86,27 @@ const handleComment = async () => {
     await fetchPost()
   } catch {
     alert('댓글 작성에 실패했습니다.')
+  }
+}
+
+const startEditComment = (comment) => {
+  editingCommentId.value = comment.id
+  editContent.value = comment.content
+}
+
+const cancelEditComment = () => {
+  editingCommentId.value = null
+  editContent.value = ''
+}
+
+const saveEditComment = async (commentId) => {
+  if (!editContent.value.trim()) return
+  try {
+    await communityAPI.updateComment(route.params.id, commentId, { content: editContent.value })
+    editingCommentId.value = null
+    await fetchPost()
+  } catch {
+    alert('댓글 수정에 실패했습니다.')
   }
 }
 
@@ -180,14 +203,27 @@ onMounted(fetchPost)
             <div v-for="comment in comments" :key="comment.id" class="comment-item">
               <div class="comment-header">
                 <span class="comment-author author-link" @click="router.push(`/users/${comment.user_id}`)">👤 {{ displayName(comment.nickname, comment.username) }}</span>
-                <span class="comment-date">{{ formatDate(comment.created_at) }}</span>
-                <button
-                  v-if="auth.user?.username === comment.username"
-                  @click="handleDeleteComment(comment.id)"
-                  class="comment-delete"
-                >삭제</button>
+                <span class="comment-date">
+                  {{ formatDate(comment.created_at) }}
+                  <span v-if="comment.created_at !== comment.updated_at" class="edited-mark">(수정됨)</span>
+                </span>
+                <template v-if="auth.user?.username === comment.username && editingCommentId !== comment.id">
+                  <button @click="startEditComment(comment)" class="comment-edit">수정</button>
+                  <button @click="handleDeleteComment(comment.id)" class="comment-delete">삭제</button>
+                </template>
               </div>
-              <p class="comment-content">{{ comment.content }}</p>
+
+              <div v-if="editingCommentId === comment.id" class="comment-edit-form">
+                <input
+                  v-model="editContent"
+                  type="text"
+                  @keyup.enter="saveEditComment(comment.id)"
+                  @keyup.esc="cancelEditComment"
+                />
+                <button @click="saveEditComment(comment.id)">저장</button>
+                <button @click="cancelEditComment" class="cancel-btn">취소</button>
+              </div>
+              <p v-else class="comment-content">{{ comment.content }}</p>
             </div>
 
             <div v-if="comments.length === 0" class="empty-comment">
@@ -384,12 +420,42 @@ onMounted(fetchPost)
   color: #aaa;
   flex: 1;
 }
+.edited-mark {
+  color: #bbb;
+}
+.comment-edit,
 .comment-delete {
   background: none;
   border: none;
   color: #aaa;
   cursor: pointer;
   font-size: calc(var(--base-font-size, 16px) - 4px);
+}
+.comment-edit-form {
+  display: flex;
+  gap: 8px;
+}
+.comment-edit-form input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: calc(var(--base-font-size, 16px) - 2px);
+  outline: none;
+}
+.comment-edit-form input:focus { border-color: #2eb872; }
+.comment-edit-form button {
+  padding: 8px 16px;
+  background: #2eb872;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: calc(var(--base-font-size, 16px) - 3px);
+}
+.comment-edit-form .cancel-btn {
+  background: #ddd;
+  color: #555;
 }
 .comment-content {
   font-size: calc(var(--base-font-size, 16px) - 2px);
