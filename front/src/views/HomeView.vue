@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { routeAPI } from '@/api/routes'
 import { infraAPI } from '@/api/infra'
 import { useAuthStore } from '@/stores/auth'
@@ -218,7 +218,20 @@ const currentNearby = computed(() => {
 const selectedDetailFacility = ref(null)
 let focusedMarker = null
 
+// 실시간 보행신호 잔여시간을 1초마다 줄어들게 표시하기 위한 시계
+const nowTick = ref(Date.now())
+let signalTickInterval = null
+const remainingSignalSeconds = (tl) => {
+  if (tl.realtime_pedestrian_sec == null || !tl.realtime_fetched_at) return null
+  const elapsed = (nowTick.value - new Date(tl.realtime_fetched_at).getTime()) / 1000
+  return Math.max(0, Math.round(tl.realtime_pedestrian_sec - elapsed))
+}
+
 onMounted(() => {
+  signalTickInterval = setInterval(() => {
+    nowTick.value = Date.now()
+  }, 1000)
+
   const checkKakao = setInterval(() => {
     if (window.kakao && window.kakao.maps) {
       clearInterval(checkKakao)
@@ -260,6 +273,10 @@ onMounted(() => {
       })
     }
   }, 100)
+})
+
+onUnmounted(() => {
+  if (signalTickInterval) clearInterval(signalTickInterval)
 })
 
 watch(transportType, () => {
@@ -1410,10 +1427,8 @@ const formatSteps = (meters) => {
                   <span v-if="tl.has_audio" class="audio-badge">음향신호기</span>
                   <span v-if="tl.has_remndr" class="remndr-badge">보행 잔여 시간</span>
                 </span>
-                <span v-if="tl.realtime_pedestrian" class="realtime-signal">
-                  <span v-for="(sec, dir) in tl.realtime_pedestrian" :key="dir">
-                    🔴 실시간 보행신호 {{ dir }} {{ sec }}초 남음
-                  </span>
+                <span v-if="remainingSignalSeconds(tl) != null" class="realtime-signal">
+                  🔴 실시간 보행신호 {{ remainingSignalSeconds(tl) }}초 남음
                 </span>
               </div>
             </div>

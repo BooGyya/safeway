@@ -170,6 +170,31 @@ def get_weather_info(lat, lng):
         return None
 
 
+PEDESTRIAN_DIRECTION_BY_BEARING = ['북쪽', '북동', '동쪽', '남동', '남쪽', '남서', '서쪽', '북서']
+
+
+def get_realtime_signal_for_crosswalk(v2x, cw_lat, cw_lng):
+    """V2X 교차로 중심점 -> 횡단보도 방향을 계산해서, 그 방향에 해당하는
+    실시간 보행신호 잔여시간(초) 하나만 골라서 반환한다."""
+    signals = fetch_realtime_pedestrian_signal(v2x.itst_id)
+    if not signals:
+        return None
+
+    lat1, lng1 = math.radians(v2x.lat), math.radians(v2x.lng)
+    lat2, lng2 = math.radians(cw_lat), math.radians(cw_lng)
+    dlng = lng2 - lng1
+    x = math.sin(dlng) * math.cos(lat2)
+    y = math.cos(lat1) * math.sin(lat2) - math.sin(lat1) * math.cos(lat2) * math.cos(dlng)
+    bearing = (math.degrees(math.atan2(x, y)) + 360) % 360
+    direction = PEDESTRIAN_DIRECTION_BY_BEARING[round(bearing / 45) % 8]
+
+    value = signals.get(direction)
+    if value is not None:
+        return value
+    # 해당 방향 신호가 비활성(적색 점등 등)이면 값이 없을 수 있어, 조회된 값 중 가장 작은 걸로 대체
+    return min(signals.values()) if signals else None
+
+
 def get_nearby(waypoints, crosswalks=None):
     """경로 주변 시설 정보 수집"""
     from community.models import Post
@@ -199,15 +224,19 @@ def get_nearby(waypoints, crosswalks=None):
                 if closest.id not in seen_lights:
                     seen_lights.add(closest.id)
 
-                    # V2X 설치 교차로가 근처(~50m)에 있으면 실시간 보행신호 잔여시간 조회
-                    realtime_pedestrian = None
+                    # V2X 설치 교차로가 근처(~50m)에 있으면, 이 횡단보도 방향에 맞는
+                    # 실시간 보행신호 잔여시간(초) 하나만 조회
+                    realtime_sec = None
+                    realtime_fetched_at = None
                     v2x_candidates = V2XIntersection.objects.filter(
                         lat__range=(lat - MATCH_RADIUS, lat + MATCH_RADIUS),
                         lng__range=(lng - MATCH_RADIUS, lng + MATCH_RADIUS),
                     )
                     if v2x_candidates.exists():
                         nearest_v2x = min(v2x_candidates, key=lambda v: abs(v.lat - lat) + abs(v.lng - lng))
-                        realtime_pedestrian = fetch_realtime_pedestrian_signal(nearest_v2x.itst_id)
+                        realtime_sec = get_realtime_signal_for_crosswalk(nearest_v2x, lat, lng)
+                        if realtime_sec is not None:
+                            realtime_fetched_at = timezone.now().isoformat()
 
                     nearby['traffic_lights'].append({
                         'id': closest.id,
@@ -217,7 +246,8 @@ def get_nearby(waypoints, crosswalks=None):
                         'lng': closest.lng,
                         'has_audio': closest.has_audio,
                         'has_remndr': closest.has_remndr,
-                        'realtime_pedestrian': realtime_pedestrian,
+                        'realtime_pedestrian_sec': realtime_sec,
+                        'realtime_fetched_at': realtime_fetched_at,
                     })
 
     # 병원/약국: 경로를 따라 300m 반경 카카오 API
