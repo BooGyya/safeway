@@ -47,6 +47,76 @@ let activeOverlay = null
 let pinnedOverlay = null
 let dangerZoneMarkers = []
 
+// 서울 실시간 도시데이터에서 조회 가능한 것으로 확인된 주요 지역 (AREA_NM)
+const CONGESTION_AREAS = [
+  { name: '강남역', lat: 37.4979, lng: 127.0276 },
+  { name: '홍대 관광특구', lat: 37.5572, lng: 126.9254 },
+  { name: '명동 관광특구', lat: 37.5636, lng: 126.9850 },
+  { name: '동대문 관광특구', lat: 37.5714, lng: 127.0098 },
+  { name: '이태원 관광특구', lat: 37.5345, lng: 126.9947 },
+  { name: '종로·청계 관광특구', lat: 37.5704, lng: 126.9919 },
+  { name: '잠실 관광특구', lat: 37.5133, lng: 127.1001 },
+  { name: '신촌·이대역', lat: 37.5599, lng: 126.9425 },
+  { name: '여의도', lat: 37.5219, lng: 126.9245 },
+  { name: '광화문·덕수궁', lat: 37.5717, lng: 126.9764 },
+  { name: '잠실종합운동장', lat: 37.5145, lng: 127.0726 },
+  { name: '서울역', lat: 37.5547, lng: 126.9707 },
+  { name: '강남 MICE 관광특구', lat: 37.5115, lng: 127.0595 },
+  { name: '건대입구역', lat: 37.5403, lng: 127.0700 },
+  { name: '신림역', lat: 37.4842, lng: 126.9296 },
+  { name: '노량진', lat: 37.5135, lng: 126.9425 },
+  { name: '가산디지털단지역', lat: 37.4818, lng: 126.8825 },
+  { name: '용산역', lat: 37.5299, lng: 126.9648 },
+  { name: '왕십리역', lat: 37.5615, lng: 127.0370 },
+  { name: '연남동', lat: 37.5635, lng: 126.9255 },
+  { name: '압구정로데오거리', lat: 37.5274, lng: 127.0402 },
+  { name: '성수카페거리', lat: 37.5446, lng: 127.0559 },
+  { name: '발산역', lat: 37.5586, lng: 126.8378 },
+  { name: '보라매공원', lat: 37.4926, lng: 126.9213 },
+  { name: '뚝섬한강공원', lat: 37.5298, lng: 127.0640 },
+]
+const congestionActive = ref(false)
+const congestionInfo = ref(null)
+const congestionLoading = ref(false)
+
+const findNearestCongestionArea = (lat, lng) => {
+  let nearest = null
+  let minDist = Infinity
+  for (const area of CONGESTION_AREAS) {
+    const d = Math.hypot(area.lat - lat, area.lng - lng)
+    if (d < minDist) {
+      minDist = d
+      nearest = area
+    }
+  }
+  return nearest
+}
+
+const toggleCongestion = async (areaOverride = null) => {
+  if (congestionActive.value && !areaOverride) {
+    congestionActive.value = false
+    congestionInfo.value = null
+    return
+  }
+  congestionActive.value = true
+  congestionLoading.value = true
+  try {
+    const center = map.getCenter()
+    const area = areaOverride || findNearestCongestionArea(center.getLat(), center.getLng())
+    const { data } = await infraAPI.getCongestion(area.name)
+    congestionInfo.value = {
+      area: area.name,
+      level: data.congestion_lvl,
+      message: data.congestion_msg,
+    }
+  } catch (e) {
+    console.error('혼잡도 조회 실패', e)
+    congestionInfo.value = { area: '', level: '', message: '혼잡도 정보를 가져오지 못했습니다.' }
+  } finally {
+    congestionLoading.value = false
+  }
+}
+
 // 패널 모드
 const panelMode = ref('route')
 
@@ -1269,6 +1339,28 @@ const formatSteps = (meters) => {
           <span class="chip-icon">{{ cat.icon }}</span>
           <span class="chip-label">{{ cat.label }}</span>
         </button>
+        <button
+          :class="['category-chip', { active: congestionActive }]"
+          :style="congestionActive ? { background: '#e53e3e', borderColor: '#e53e3e' } : {}"
+          @click="toggleCongestion()"
+        >
+          <span class="chip-icon">🚦</span>
+          <span class="chip-label">혼잡도</span>
+        </button>
+      </div>
+
+      <div v-if="congestionActive" class="congestion-box">
+        <div v-if="congestionLoading">혼잡도 조회 중...</div>
+        <template v-else-if="congestionInfo">
+          <div class="congestion-header">
+            <strong>{{ congestionInfo.area }}</strong>
+            <select :value="congestionInfo.area" @change="toggleCongestion(CONGESTION_AREAS.find(a => a.name === $event.target.value))">
+              <option v-for="a in CONGESTION_AREAS" :key="a.name" :value="a.name">{{ a.name }}</option>
+            </select>
+          </div>
+          <div class="congestion-level">{{ congestionInfo.level }}</div>
+          <div class="congestion-msg">{{ congestionInfo.message }}</div>
+        </template>
       </div>
 
       <div ref="mapContainer" class="map"></div>
@@ -2248,6 +2340,41 @@ p.info-jibun {
 }
 .category-bar::-webkit-scrollbar {
   display: none;
+}
+.congestion-box {
+  position: absolute;
+  top: 60px;
+  left: 12px;
+  right: 12px;
+  z-index: 10;
+  background: white;
+  border-radius: 12px;
+  padding: 12px 16px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  font-size: calc(var(--base-font-size, 16px) - 2px);
+}
+.congestion-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.congestion-header select {
+  font-size: calc(var(--base-font-size, 16px) - 4px);
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 2px 6px;
+}
+.congestion-level {
+  font-weight: bold;
+  color: #e53e3e;
+  margin-bottom: 4px;
+}
+.congestion-msg {
+  color: #666;
+  font-size: calc(var(--base-font-size, 16px) - 3px);
+  line-height: 1.5;
 }
 .category-chip {
   display: flex;
