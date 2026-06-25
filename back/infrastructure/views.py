@@ -84,11 +84,14 @@ def fetch_realtime_pedestrian_signal(itst_id):
             return None
         item = data[0]
 
+        UNKNOWN_VALUE = 36001  # 해당 방향이 보행 녹색이 아닐 때 들어오는 "값 없음" 센티넬
+
         result = {}
         for prefix, direction in DIRECTIONS.items():
             value = item.get(f"{prefix}PdsgRmdrCs")
-            if value:
-                result[direction] = round(float(value) / 100, 1)
+            if value and value < UNKNOWN_VALUE:
+                # 데시초(1/10초) 단위
+                result[direction] = round(float(value) / 10, 1)
         return result or None
     except Exception:
         return None
