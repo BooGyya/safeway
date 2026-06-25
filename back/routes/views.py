@@ -125,24 +125,24 @@ def get_kakao_car_route(origin_lat, origin_lng, dest_lat, dest_lng):
 
 
 def calculate_safety_score(traffic_lights, danger_zones, distance, user_type):
-    """안전도 점수: 횡단 횟수/장비, 이동 거리, 관리자 확인 위험구간을 반영해 1.0에서 감점"""
-    score = 1.0
-
-    # 횡단보도 1건당 감점. 보조 신호(음향/잔여시간)가 없으면 더 크게 감점
+    """안전도 점수: 횡단 횟수/장비, 이동 거리, 관리자 확인 위험구간을 반영해 1.0에서 감점.
+    장거리 경로에서 감점이 무한히 누적돼 전부 0점이 되는 걸 막기 위해 항목별로 상한을 둔다."""
+    crossing_penalty = 0.0
     for tl in traffic_lights or []:
         if user_type == 'disabled':
             equipped = tl.get('has_audio')
         else:
             equipped = tl.get('has_audio') or tl.get('has_remndr')
-        score -= 0.03 if equipped else 0.08
+        crossing_penalty += 0.015 if equipped else 0.035
+    crossing_penalty = min(crossing_penalty, 0.35)
 
-    # 이동 거리가 길수록 외부 노출 시간이 늘어나 감점 (500m당 -0.02)
-    if distance:
-        score -= (distance / 500) * 0.02
+    # 이동 거리가 길수록 외부 노출 시간이 늘어나 감점 (500m당 -0.01, 최대 -0.25)
+    distance_penalty = min((distance / 500) * 0.01, 0.25) if distance else 0.0
 
-    # 관리자가 확인한 위험구간 1건당 큰 감점
-    score -= len(danger_zones or []) * 0.15
+    # 관리자가 확인한 위험구간 1건당 큰 감점 (최대 -0.45)
+    danger_penalty = min(len(danger_zones or []) * 0.15, 0.45)
 
+    score = 1.0 - crossing_penalty - distance_penalty - danger_penalty
     return round(max(0.0, min(1.0, score)), 2)
 
 
