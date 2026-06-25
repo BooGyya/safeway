@@ -251,13 +251,22 @@ const refreshRealtimeSignals = async () => {
   )
 }
 
-// 카운트다운이 0초에 도달하면(신호가 바뀌었을 시점) 자동으로 한 번 더 조회해서 다시 줄어들게 함
+// 카운트다운이 0초가 됐거나(보행 녹색->대기로 전환), 대기 중이던 신호가 그새 녹색으로 바뀌었을 수 있어
+// 주기적으로 다시 조회한다. 0초 도달 시는 매초, 이미 대기 중인 건 5초마다(과도한 호출 방지) 재조회.
+let signalRefreshTick = 0
 const refreshZeroedSignals = () => {
   if (!showRouteDetail.value) return
+  signalRefreshTick++
   const lights = currentNearby.value?.traffic_lights || []
-  lights
-    .filter((tl) => tl.v2x_available && remainingSignalSeconds(tl) === 0)
-    .forEach(refreshOneSignal)
+  lights.forEach((tl) => {
+    if (!tl.v2x_available) return
+    const remaining = remainingSignalSeconds(tl)
+    if (remaining === 0) {
+      refreshOneSignal(tl)
+    } else if (remaining == null && signalRefreshTick % 5 === 0) {
+      refreshOneSignal(tl)
+    }
+  })
 }
 
 watch(showRouteDetail, (open) => {
