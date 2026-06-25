@@ -189,11 +189,9 @@ def get_realtime_signal_for_crosswalk(v2x, cw_lat, cw_lng):
     bearing = (math.degrees(math.atan2(x, y)) + 360) % 360
     direction = PEDESTRIAN_DIRECTION_BY_BEARING[round(bearing / 45) % 8]
 
-    value = signals.get(direction)
-    if value is not None:
-        return value
-    # 해당 방향 신호가 비활성(적색 점등 등)이면 값이 없을 수 있어, 조회된 값 중 가장 작은 걸로 대체
-    return min(signals.values()) if signals else None
+    # 다른 방향 값으로 대체하면 차량 신호 등 무관한 값이 섞여 들어가므로,
+    # 이 횡단보도 방향 값이 없으면(=현재 보행 녹색이 아님) 그대로 None을 반환한다.
+    return signals.get(direction)
 
 
 # 경로 상세 화면을 열어볼 때, 그 시점 기준으로 실시간 보행신호 잔여시간을 다시 조회
@@ -211,14 +209,15 @@ def realtime_signal_for_point(request):
         lng__range=(lng - V2X_MATCH_RADIUS, lng + V2X_MATCH_RADIUS),
     )
     if not v2x_candidates.exists():
-        return Response({'realtime_pedestrian_sec': None, 'realtime_fetched_at': None})
+        return Response({'v2x_available': False, 'realtime_pedestrian_sec': None, 'realtime_fetched_at': None})
 
     nearest_v2x = min(v2x_candidates, key=lambda v: abs(v.lat - lat) + abs(v.lng - lng))
     sec = get_realtime_signal_for_crosswalk(nearest_v2x, lat, lng)
 
     return Response({
+        'v2x_available': True,
         'realtime_pedestrian_sec': sec,
-        'realtime_fetched_at': timezone.now().isoformat() if sec is not None else None,
+        'realtime_fetched_at': timezone.now().isoformat(),
     })
 
 
@@ -253,6 +252,7 @@ def get_nearby(waypoints, crosswalks=None):
 
                     # V2X 설치 교차로가 근처(~50m)에 있으면, 이 횡단보도 방향에 맞는
                     # 실시간 보행신호 잔여시간(초) 하나만 조회
+                    v2x_available = False
                     realtime_sec = None
                     realtime_fetched_at = None
                     v2x_candidates = V2XIntersection.objects.filter(
@@ -260,10 +260,10 @@ def get_nearby(waypoints, crosswalks=None):
                         lng__range=(lng - MATCH_RADIUS, lng + MATCH_RADIUS),
                     )
                     if v2x_candidates.exists():
+                        v2x_available = True
                         nearest_v2x = min(v2x_candidates, key=lambda v: abs(v.lat - lat) + abs(v.lng - lng))
                         realtime_sec = get_realtime_signal_for_crosswalk(nearest_v2x, lat, lng)
-                        if realtime_sec is not None:
-                            realtime_fetched_at = timezone.now().isoformat()
+                        realtime_fetched_at = timezone.now().isoformat()
 
                     nearby['traffic_lights'].append({
                         'id': closest.id,
@@ -273,6 +273,7 @@ def get_nearby(waypoints, crosswalks=None):
                         'lng': closest.lng,
                         'has_audio': closest.has_audio,
                         'has_remndr': closest.has_remndr,
+                        'v2x_available': v2x_available,
                         'realtime_pedestrian_sec': realtime_sec,
                         'realtime_fetched_at': realtime_fetched_at,
                     })

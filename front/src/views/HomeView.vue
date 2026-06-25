@@ -235,6 +235,7 @@ const refreshOneSignal = async (tl) => {
   refreshingSignalIds.add(tl.id)
   try {
     const { data } = await routeAPI.getRealtimeSignal(tl.lat, tl.lng)
+    tl.v2x_available = data.v2x_available
     tl.realtime_pedestrian_sec = data.realtime_pedestrian_sec
     tl.realtime_fetched_at = data.realtime_fetched_at
   } catch { /* ignore */ } finally {
@@ -246,7 +247,7 @@ const refreshOneSignal = async (tl) => {
 const refreshRealtimeSignals = async () => {
   const lights = currentNearby.value?.traffic_lights || []
   await Promise.all(
-    lights.filter((tl) => tl.realtime_pedestrian_sec != null).map(refreshOneSignal)
+    lights.filter((tl) => tl.v2x_available).map(refreshOneSignal)
   )
 }
 
@@ -255,7 +256,7 @@ const refreshZeroedSignals = () => {
   if (!showRouteDetail.value) return
   const lights = currentNearby.value?.traffic_lights || []
   lights
-    .filter((tl) => tl.realtime_pedestrian_sec != null && remainingSignalSeconds(tl) === 0)
+    .filter((tl) => tl.v2x_available && remainingSignalSeconds(tl) === 0)
     .forEach(refreshOneSignal)
 }
 
@@ -1464,8 +1465,9 @@ const formatSteps = (meters) => {
                   <span v-if="tl.has_audio" class="audio-badge">음향신호기</span>
                   <span v-if="tl.has_remndr" class="remndr-badge">보행 잔여 시간</span>
                 </span>
-                <span v-if="remainingSignalSeconds(tl) != null" class="realtime-signal">
-                  🔴 실시간 보행신호 {{ remainingSignalSeconds(tl) }}초 남음
+                <span v-if="tl.v2x_available" class="realtime-signal" :class="remainingSignalSeconds(tl) > 0 ? 'signal-green' : 'signal-red'">
+                  <template v-if="remainingSignalSeconds(tl) > 0">🟢 실시간 보행신호 {{ remainingSignalSeconds(tl) }}초 남음</template>
+                  <template v-else>🔴 보행신호 대기 중 (차량 신호)</template>
                 </span>
               </div>
             </div>
@@ -2430,9 +2432,14 @@ p.info-jibun {
 .realtime-signal {
   display: block;
   margin-top: 4px;
-  color: #e53e3e;
   font-size: calc(var(--base-font-size, 16px) - 4px);
   font-weight: 700;
+}
+.realtime-signal.signal-green {
+  color: #2eb872;
+}
+.realtime-signal.signal-red {
+  color: #e53e3e;
 }
 
 
