@@ -28,7 +28,7 @@ def call_gms(messages, system_prompt=""):
             'https://gms.ssafy.io/gmsapi/api.openai.com/v1/chat/completions',
             headers=headers,
             json=body,
-            timeout=30,
+            timeout=60,
         )
         data = response.json()
         return data['choices'][0]['message']['content']
