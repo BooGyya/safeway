@@ -31,22 +31,36 @@ const scrollToBottom = async () => {
   }
 }
 
-// 위치 권한 요청
-const requestLocation = () => {
-  if (!navigator.geolocation) return
-  navigator.geolocation.getCurrentPosition(
-    (pos) => {
-      userLat.value = pos.coords.latitude
-      userLng.value = pos.coords.longitude
-      locationGranted.value = true
-      messages.value.push({
-        role: 'assistant',
-        content: '📍 현재 위치를 받았어요! 이제 주변 시설을 정확하게 안내해드릴 수 있어요.'
-      })
-      scrollToBottom()
-    },
-    () => { locationGranted.value = false }
-  )
+// 현재 위치를 새로 조회 (캐시된 위치 사용 안 함 - 이동 중에도 최신 위치 반영)
+const fetchLocation = () => {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) {
+      resolve(false)
+      return
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        userLat.value = pos.coords.latitude
+        userLng.value = pos.coords.longitude
+        resolve(true)
+      },
+      () => resolve(false),
+      { maximumAge: 0, timeout: 5000 }
+    )
+  })
+}
+
+// 위치 권한 요청 (최초 1회, 권한 허용 메시지 표시)
+const requestLocation = async () => {
+  const success = await fetchLocation()
+  locationGranted.value = success
+  if (success) {
+    messages.value.push({
+      role: 'assistant',
+      content: '📍 현재 위치를 받았어요! 이제 주변 시설을 정확하게 안내해드릴 수 있어요.'
+    })
+    scrollToBottom()
+  }
 }
 
 const fetchHistory = async () => {
@@ -83,6 +97,11 @@ const sendMessage = async () => {
   messages.value.push({ role: 'user', content: userMessage })
   await scrollToBottom()
 
+  // 이동 중일 수 있으므로 메시지 보내기 직전에 위치를 다시 조회
+  if (locationGranted.value) {
+    await fetchLocation()
+  }
+
   loading.value = true
   try {
     const { data } = await chatbotAPI.chat(
@@ -95,23 +114,19 @@ const sendMessage = async () => {
     messages.value.push({ role: 'assistant', content: data.message })
     await scrollToBottom()
 
-    // 경로 탐색 액션 처리
+    // 경로 탐색 액션 처리: 좌표를 미리 조회해두고, 사용자가 버튼을 눌러야 지도로 이동
     if (data.action?.type === 'route') {
       const { origin, dest } = data.action
-      setTimeout(async () => {
-        // 카카오 API로 좌표 조회 후 지도로 이동
-        const originResult = await resolvePlace(origin)
-        const destResult = await resolvePlace(dest)
-        if (originResult && destResult) {
-          messages.value.push({
-            role: 'assistant',
-            content: `🗺️ 지도에서 "${origin} → ${dest}" 경로를 탐색할게요!`
-          })
-          await scrollToBottom()
-          mapStore.setPendingRoute({ origin: originResult, dest: destResult })
-          router.push('/')
-        }
-      }, 1000)
+      const originResult = await resolvePlace(origin)
+      const destResult = await resolvePlace(dest)
+      if (originResult && destResult) {
+        messages.value.push({
+          role: 'assistant',
+          content: `🗺️ 지도에서 도보로 "${origin} → ${dest}" 경로를 탐색할게요.`,
+          routeAction: { origin: originResult, dest: destResult }
+        })
+        await scrollToBottom()
+      }
     }
 
     fetchHistory()
@@ -135,6 +150,12 @@ const resolvePlace = async (placeName) => {
     }
   } catch { /* ignore */ }
   return null
+}
+
+// 경로 결과 버튼 클릭 시 출발지/목적지가 입력된 지도로 이동
+const goToRoute = (routeAction) => {
+  mapStore.setRoute(routeAction.origin, routeAction.dest)
+  router.push('/map')
 }
 
 const formatDate = (dateStr) => {
@@ -183,7 +204,12 @@ const formatDate = (dateStr) => {
           >
             <div class="bubble">
               <span v-if="msg.role === 'assistant'" class="bot-icon">🤖</span>
-              <p>{{ msg.content }}</p>
+              <div>
+                <p>{{ msg.content }}</p>
+                <button v-if="msg.routeAction" class="route-action-btn" @click="goToRoute(msg.routeAction)">
+                  🗺️ 지도에서 경로 보기
+                </button>
+              </div>
             </div>
           </div>
 
@@ -377,6 +403,20 @@ const formatDate = (dateStr) => {
   line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-word;
+}
+.route-action-btn {
+  margin-top: 8px;
+  padding: 8px 14px;
+  background: #2eb872;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: calc(var(--base-font-size, 16px) - 3px);
+  font-weight: 600;
+}
+.route-action-btn:hover {
+  background: #25955d;
 }
 .loading-dots span { animation: blink 1.2s infinite; }
 .loading-dots span:nth-child(2) { animation-delay: 0.2s; }
