@@ -128,6 +128,14 @@ const toggleTraffic = () => {
   trafficActive.value = !trafficActive.value
 }
 
+const congestionLevelColor = (level) => ({
+  '여유': '#2eb872',
+  '보통': '#2eb872',
+  '약간 붐빔': '#f5a623',
+  '붐빔': '#e53e3e',
+  '매우 붐빔': '#e53e3e',
+}[level] || '#666')
+
 // 패널 모드
 const panelMode = ref('route')
 
@@ -1373,7 +1381,7 @@ const formatSteps = (meters) => {
         <div v-if="congestionLoading">혼잡도 조회 중...</div>
         <template v-else-if="congestionInfo">
           <strong>{{ congestionInfo.area }}</strong>
-          <div class="congestion-level">{{ congestionInfo.level }}</div>
+          <div class="congestion-level" :style="{ color: congestionLevelColor(congestionInfo.level) }">{{ congestionInfo.level }}</div>
           <div class="congestion-msg">{{ congestionInfo.message }}</div>
         </template>
       </div>
@@ -2080,8 +2088,8 @@ h2 {
   box-shadow: 0 2px 6px rgba(0,0,0,0.15);
 }
 .side-toggle-btn.active {
-  background: #e53e3e;
-  border-color: #e53e3e;
+  background: #2eb872;
+  border-color: #2eb872;
   color: white;
 }
 
@@ -2405,7 +2413,6 @@ p.info-jibun {
 }
 .congestion-level {
   font-weight: bold;
-  color: #e53e3e;
   margin-bottom: 4px;
 }
 .congestion-msg {
