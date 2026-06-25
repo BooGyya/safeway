@@ -117,6 +117,17 @@ const toggleCongestion = async (areaOverride = null) => {
   }
 }
 
+// 카카오맵 내장 실시간 도로 교통정보 레이어
+const trafficActive = ref(false)
+const toggleTraffic = () => {
+  if (trafficActive.value) {
+    map.removeOverlayMapTypeId(window.kakao.maps.MapTypeId.TRAFFIC)
+  } else {
+    map.addOverlayMapTypeId(window.kakao.maps.MapTypeId.TRAFFIC)
+  }
+  trafficActive.value = !trafficActive.value
+}
+
 // 패널 모드
 const panelMode = ref('route')
 
@@ -1339,13 +1350,21 @@ const formatSteps = (meters) => {
           <span class="chip-icon">{{ cat.icon }}</span>
           <span class="chip-label">{{ cat.label }}</span>
         </button>
+      </div>
+
+      <!-- 우측 상단 토글 버튼 (SOS 아래) -->
+      <div class="side-toggle-bar">
         <button
-          :class="['category-chip', { active: congestionActive }]"
-          :style="congestionActive ? { background: '#e53e3e', borderColor: '#e53e3e' } : {}"
+          :class="['side-toggle-btn', { active: congestionActive }]"
           @click="toggleCongestion()"
         >
-          <span class="chip-icon">🚦</span>
-          <span class="chip-label">혼잡도</span>
+          🧍 인구밀도
+        </button>
+        <button
+          :class="['side-toggle-btn', { active: trafficActive }]"
+          @click="toggleTraffic"
+        >
+          🚦 교통정보
         </button>
       </div>
 
@@ -2043,6 +2062,30 @@ h2 {
 }
 .sos-btn:hover {
   background: #c53030;
+}
+.side-toggle-bar {
+  position: absolute;
+  top: 68px;
+  right: 16px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.side-toggle-btn {
+  padding: 8px 12px;
+  background: white;
+  border: 1.5px solid #ddd;
+  border-radius: 20px;
+  cursor: pointer;
+  white-space: nowrap;
+  font-size: calc(var(--base-font-size, 16px) - 4px);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+}
+.side-toggle-btn.active {
+  background: #e53e3e;
+  border-color: #e53e3e;
+  color: white;
 }
 
 /* 지도 클릭 위치 */
