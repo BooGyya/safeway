@@ -330,6 +330,7 @@ def user_profile(request, user_id):
     return Response({
         'id': target_user.id,
         'username': target_user.username,
+        'nickname': target_user.nickname,
         'profile_image': request.build_absolute_uri(target_user.profile_image.url) if target_user.profile_image else None,
         'user_type': target_user.user_type,
         'post_count': Post.objects.filter(user=target_user).count(),

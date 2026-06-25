@@ -60,6 +60,11 @@ const routes = [
     component: () => import('@/views/PostDetailView.vue')
   },
   {
+    path: '/users/:id',
+    name: 'UserProfile',
+    component: () => import('@/views/UserProfileView.vue')
+  },
+  {
     path: '/chatbot',
     name: 'Chatbot',
     component: () => import('@/views/ChatbotView.vue'),

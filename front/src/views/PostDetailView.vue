@@ -135,7 +135,10 @@ onMounted(fetchPost)
 
           <h2 class="post-title">{{ post.title }}</h2>
           <div class="post-meta-row">
-            <p class="post-meta">👤 {{ displayName(post.nickname, post.username) }} · 📅 {{ formatDate(post.updated_at) }}</p>
+            <p class="post-meta">
+              👤 <span class="author-link" @click="router.push(`/users/${post.user_id}`)">{{ displayName(post.nickname, post.username) }}</span>
+              · 📅 {{ formatDate(post.updated_at) }}
+            </p>
             <button
               v-if="auth.isLoggedIn && auth.user?.username !== post.username"
               :class="['follow-btn', { following: isFollowing }]"
@@ -176,7 +179,7 @@ onMounted(fetchPost)
           <div class="comment-list">
             <div v-for="comment in comments" :key="comment.id" class="comment-item">
               <div class="comment-header">
-                <span class="comment-author">👤 {{ displayName(comment.nickname, comment.username) }}</span>
+                <span class="comment-author author-link" @click="router.push(`/users/${comment.user_id}`)">👤 {{ displayName(comment.nickname, comment.username) }}</span>
                 <span class="comment-date">{{ formatDate(comment.created_at) }}</span>
                 <button
                   v-if="auth.user?.username === comment.username"
@@ -271,6 +274,13 @@ onMounted(fetchPost)
 .post-meta {
   font-size: calc(var(--base-font-size, 16px) - 3px);
   color: #888;
+}
+.author-link {
+  cursor: pointer;
+  font-weight: 600;
+}
+.author-link:hover {
+  text-decoration: underline;
 }
 .post-address {
   font-size: calc(var(--base-font-size, 16px) - 3px);
