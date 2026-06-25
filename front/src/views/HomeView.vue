@@ -227,18 +227,36 @@ const remainingSignalSeconds = (tl) => {
   return Math.max(0, Math.round(tl.realtime_pedestrian_sec - elapsed))
 }
 
+// 신호가 0초가 됐을 때 동시에 여러 번 재조회하지 않도록 막는 가드
+const refreshingSignalIds = new Set()
+
+const refreshOneSignal = async (tl) => {
+  if (refreshingSignalIds.has(tl.id)) return
+  refreshingSignalIds.add(tl.id)
+  try {
+    const { data } = await routeAPI.getRealtimeSignal(tl.lat, tl.lng)
+    tl.realtime_pedestrian_sec = data.realtime_pedestrian_sec
+    tl.realtime_fetched_at = data.realtime_fetched_at
+  } catch { /* ignore */ } finally {
+    refreshingSignalIds.delete(tl.id)
+  }
+}
+
 // 상세보기를 여는 시점 기준으로 실시간 보행신호를 다시 조회 (검색 시점 스냅샷이 그새 0이 되는 것 방지)
 const refreshRealtimeSignals = async () => {
   const lights = currentNearby.value?.traffic_lights || []
   await Promise.all(
-    lights.filter((tl) => tl.realtime_pedestrian_sec != null).map(async (tl) => {
-      try {
-        const { data } = await routeAPI.getRealtimeSignal(tl.lat, tl.lng)
-        tl.realtime_pedestrian_sec = data.realtime_pedestrian_sec
-        tl.realtime_fetched_at = data.realtime_fetched_at
-      } catch { /* ignore */ }
-    })
+    lights.filter((tl) => tl.realtime_pedestrian_sec != null).map(refreshOneSignal)
   )
+}
+
+// 카운트다운이 0초에 도달하면(신호가 바뀌었을 시점) 자동으로 한 번 더 조회해서 다시 줄어들게 함
+const refreshZeroedSignals = () => {
+  if (!showRouteDetail.value) return
+  const lights = currentNearby.value?.traffic_lights || []
+  lights
+    .filter((tl) => tl.realtime_pedestrian_sec != null && remainingSignalSeconds(tl) === 0)
+    .forEach(refreshOneSignal)
 }
 
 watch(showRouteDetail, (open) => {
@@ -248,6 +266,7 @@ watch(showRouteDetail, (open) => {
 onMounted(() => {
   signalTickInterval = setInterval(() => {
     nowTick.value = Date.now()
+    refreshZeroedSignals()
   }, 1000)
 
   const checkKakao = setInterval(() => {
