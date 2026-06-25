@@ -252,7 +252,8 @@ const refreshRealtimeSignals = async () => {
 }
 
 // 카운트다운이 0초가 됐거나(보행 녹색->대기로 전환), 대기 중이던 신호가 그새 녹색으로 바뀌었을 수 있어
-// 주기적으로 다시 조회한다. 0초 도달 시는 매초, 이미 대기 중인 건 5초마다(과도한 호출 방지) 재조회.
+// 주기적으로 다시 조회한다. t-data API가 하루 1000회 호출 한도라 너무 자주 부르면 금방 소진되므로,
+// 0초 도달 시만 즉시, 대기 중인 건 15초마다 한 번만 재조회.
 let signalRefreshTick = 0
 const refreshZeroedSignals = () => {
   if (!showRouteDetail.value) return
@@ -263,7 +264,7 @@ const refreshZeroedSignals = () => {
     const remaining = remainingSignalSeconds(tl)
     if (remaining === 0) {
       refreshOneSignal(tl)
-    } else if (remaining == null && signalRefreshTick % 5 === 0) {
+    } else if (remaining == null && signalRefreshTick % 15 === 0) {
       refreshOneSignal(tl)
     }
   })
