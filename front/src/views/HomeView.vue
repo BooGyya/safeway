@@ -1355,28 +1355,24 @@ const formatSteps = (meters) => {
       <!-- 우측 상단 토글 버튼 (SOS 아래) -->
       <div class="side-toggle-bar">
         <button
-          :class="['side-toggle-btn', { active: congestionActive }]"
-          @click="toggleCongestion()"
-        >
-          🧍 인구밀도
-        </button>
-        <button
           :class="['side-toggle-btn', { active: trafficActive }]"
           @click="toggleTraffic"
         >
           🚦 교통정보
         </button>
+        <button
+          :class="['side-toggle-btn', { active: congestionActive }]"
+          @click="toggleCongestion()"
+        >
+          🧍 인구밀도
+        </button>
       </div>
 
       <div v-if="congestionActive" class="congestion-box">
+        <button class="congestion-close" @click="toggleCongestion()">✕</button>
         <div v-if="congestionLoading">혼잡도 조회 중...</div>
         <template v-else-if="congestionInfo">
-          <div class="congestion-header">
-            <strong>{{ congestionInfo.area }}</strong>
-            <select :value="congestionInfo.area" @change="toggleCongestion(CONGESTION_AREAS.find(a => a.name === $event.target.value))">
-              <option v-for="a in CONGESTION_AREAS" :key="a.name" :value="a.name">{{ a.name }}</option>
-            </select>
-          </div>
+          <strong>{{ congestionInfo.area }}</strong>
           <div class="congestion-level">{{ congestionInfo.level }}</div>
           <div class="congestion-msg">{{ congestionInfo.message }}</div>
         </template>
@@ -2080,6 +2076,7 @@ h2 {
   cursor: pointer;
   white-space: nowrap;
   font-size: calc(var(--base-font-size, 16px) - 4px);
+  font-weight: 700;
   box-shadow: 0 2px 6px rgba(0,0,0,0.15);
 }
 .side-toggle-btn.active {
@@ -2386,28 +2383,25 @@ p.info-jibun {
 }
 .congestion-box {
   position: absolute;
-  top: 60px;
-  left: 12px;
-  right: 12px;
+  top: 168px;
+  right: 16px;
+  width: 220px;
   z-index: 10;
   background: white;
   border-radius: 12px;
-  padding: 12px 16px;
+  padding: 14px 16px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.15);
   font-size: calc(var(--base-font-size, 16px) - 2px);
 }
-.congestion-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 4px;
-}
-.congestion-header select {
-  font-size: calc(var(--base-font-size, 16px) - 4px);
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  padding: 2px 6px;
+.congestion-close {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #999;
+  font-size: calc(var(--base-font-size, 16px) - 3px);
 }
 .congestion-level {
   font-weight: bold;
