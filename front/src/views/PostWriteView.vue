@@ -17,6 +17,9 @@ const form = ref({
 const loading = ref(false)
 const isEdit = ref(false)
 const postId = ref(null)
+const existingImages = ref([])
+const newFiles = ref([])
+const newFilePreviews = ref([])
 
 const categories = [
   { value: 'danger', label: '⚠️ 위험' },
@@ -40,12 +43,36 @@ onMounted(async () => {
         longitude: data.longitude || '',
         address: data.address || ''
       }
+      existingImages.value = data.images || []
     } catch {
       alert('게시글을 불러오지 못했습니다.')
       router.push('/community')
     }
   }
 })
+
+const handleFileSelect = (e) => {
+  const files = Array.from(e.target.files || [])
+  newFiles.value.push(...files)
+  newFilePreviews.value.push(...files.map((f) => URL.createObjectURL(f)))
+  e.target.value = ''
+}
+
+const removeNewFile = (idx) => {
+  URL.revokeObjectURL(newFilePreviews.value[idx])
+  newFiles.value.splice(idx, 1)
+  newFilePreviews.value.splice(idx, 1)
+}
+
+const removeExistingImage = async (imageId) => {
+  if (!confirm('이 사진을 삭제하시겠습니까?')) return
+  try {
+    await communityAPI.deleteImage(postId.value, imageId)
+    existingImages.value = existingImages.value.filter((img) => img.id !== imageId)
+  } catch {
+    alert('사진 삭제에 실패했습니다.')
+  }
+}
 
 const getLocation = () => {
   if (!navigator.geolocation) {
@@ -85,15 +112,22 @@ const handleSubmit = async () => {
     if (form.value.latitude !== '') payload.latitude = form.value.latitude
     if (form.value.longitude !== '') payload.longitude = form.value.longitude
 
+    let targetId = postId.value
     if (isEdit.value) {
-      await communityAPI.updatePost(postId.value, payload)
-      alert('게시글이 수정되었습니다.')
-      router.push(`/community/${postId.value}`)
+      await communityAPI.updatePost(targetId, payload)
     } else {
-      await communityAPI.createPost(payload)
-      alert('제보가 등록되었습니다!')
-      router.push('/community')
+      const { data } = await communityAPI.createPost(payload)
+      targetId = data.id
     }
+
+    if (newFiles.value.length > 0) {
+      const formData = new FormData()
+      newFiles.value.forEach((file) => formData.append('images', file))
+      await communityAPI.addImage(targetId, formData)
+    }
+
+    alert(isEdit.value ? '게시글이 수정되었습니다.' : '제보가 등록되었습니다!')
+    router.push(`/community/${targetId}`)
   } catch {
     alert('게시글 저장에 실패했습니다.')
   } finally {
@@ -139,6 +173,21 @@ const handleSubmit = async () => {
         <div class="form-group">
           <label>주소</label>
           <input v-model="form.address" type="text" placeholder="주소를 입력하세요" />
+        </div>
+
+        <div class="form-group">
+          <label>사진 (선택)</label>
+          <input type="file" accept="image/*" multiple @change="handleFileSelect" />
+          <div v-if="existingImages.length || newFilePreviews.length" class="image-preview-row">
+            <div v-for="img in existingImages" :key="img.id" class="image-preview-item">
+              <img :src="img.image" />
+              <button type="button" @click="removeExistingImage(img.id)" class="image-remove-btn">✕</button>
+            </div>
+            <div v-for="(src, idx) in newFilePreviews" :key="src" class="image-preview-item">
+              <img :src="src" />
+              <button type="button" @click="removeNewFile(idx)" class="image-remove-btn">✕</button>
+            </div>
+          </div>
         </div>
 
         <div class="form-group">
@@ -240,6 +289,37 @@ textarea {
   background: #2eb872;
   color: white;
   border-color: #2eb872;
+}
+.image-preview-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.image-preview-item {
+  position: relative;
+  width: 90px;
+  height: 90px;
+}
+.image-preview-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+}
+.image-remove-btn {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #e53e3e;
+  color: white;
+  border: none;
+  cursor: pointer;
+  font-size: 11px;
+  line-height: 1;
 }
 .location-row {
   display: flex;

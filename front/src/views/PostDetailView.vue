@@ -147,6 +147,12 @@ onMounted(fetchPost)
           <p class="post-address">📍 {{ post.address }}</p>
           <p class="post-content">{{ post.content }}</p>
 
+          <div v-if="post.images?.length" class="post-image-row">
+            <a v-for="img in post.images" :key="img.id" :href="img.image" target="_blank">
+              <img :src="img.image" class="post-image-item" />
+            </a>
+          </div>
+
           <div class="post-footer">
             <button @click="handleLike" class="like-btn">
               ❤️ {{ post.like_count || 0 }}
@@ -278,6 +284,18 @@ onMounted(fetchPost)
   color: #333;
   line-height: 1.7;
   white-space: pre-wrap;
+}
+.post-image-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.post-image-item {
+  width: 120px;
+  height: 120px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid #ddd;
 }
 .post-footer {
   display: flex;
