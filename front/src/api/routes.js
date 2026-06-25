@@ -9,4 +9,5 @@ export const routeAPI = {
   deleteFavorite: (id) => api.delete(`/api/routes/favorites/${id}/`),
   getHistory: () => api.get('/api/routes/history/'),
   deleteHistory: (id) => api.delete(`/api/routes/history/${id}/`),
+  getRealtimeSignal: (lat, lng) => api.get('/api/routes/realtime-signal/', { params: { lat, lng } }),
 }

@@ -227,6 +227,24 @@ const remainingSignalSeconds = (tl) => {
   return Math.max(0, Math.round(tl.realtime_pedestrian_sec - elapsed))
 }
 
+// 상세보기를 여는 시점 기준으로 실시간 보행신호를 다시 조회 (검색 시점 스냅샷이 그새 0이 되는 것 방지)
+const refreshRealtimeSignals = async () => {
+  const lights = currentNearby.value?.traffic_lights || []
+  await Promise.all(
+    lights.filter((tl) => tl.realtime_pedestrian_sec != null).map(async (tl) => {
+      try {
+        const { data } = await routeAPI.getRealtimeSignal(tl.lat, tl.lng)
+        tl.realtime_pedestrian_sec = data.realtime_pedestrian_sec
+        tl.realtime_fetched_at = data.realtime_fetched_at
+      } catch { /* ignore */ }
+    })
+  )
+}
+
+watch(showRouteDetail, (open) => {
+  if (open) refreshRealtimeSignals()
+})
+
 onMounted(() => {
   signalTickInterval = setInterval(() => {
     nowTick.value = Date.now()

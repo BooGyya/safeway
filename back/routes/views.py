@@ -171,6 +171,7 @@ def get_weather_info(lat, lng):
 
 
 PEDESTRIAN_DIRECTION_BY_BEARING = ['북쪽', '북동', '동쪽', '남동', '남쪽', '남서', '서쪽', '북서']
+V2X_MATCH_RADIUS = 0.0005  # ~50m
 
 
 def get_realtime_signal_for_crosswalk(v2x, cw_lat, cw_lng):
@@ -193,6 +194,32 @@ def get_realtime_signal_for_crosswalk(v2x, cw_lat, cw_lng):
         return value
     # 해당 방향 신호가 비활성(적색 점등 등)이면 값이 없을 수 있어, 조회된 값 중 가장 작은 걸로 대체
     return min(signals.values()) if signals else None
+
+
+# 경로 상세 화면을 열어볼 때, 그 시점 기준으로 실시간 보행신호 잔여시간을 다시 조회
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def realtime_signal_for_point(request):
+    lat = request.query_params.get('lat')
+    lng = request.query_params.get('lng')
+    if not lat or not lng:
+        return Response({'error': 'lat, lng를 입력해주세요.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    lat, lng = float(lat), float(lng)
+    v2x_candidates = V2XIntersection.objects.filter(
+        lat__range=(lat - V2X_MATCH_RADIUS, lat + V2X_MATCH_RADIUS),
+        lng__range=(lng - V2X_MATCH_RADIUS, lng + V2X_MATCH_RADIUS),
+    )
+    if not v2x_candidates.exists():
+        return Response({'realtime_pedestrian_sec': None, 'realtime_fetched_at': None})
+
+    nearest_v2x = min(v2x_candidates, key=lambda v: abs(v.lat - lat) + abs(v.lng - lng))
+    sec = get_realtime_signal_for_crosswalk(nearest_v2x, lat, lng)
+
+    return Response({
+        'realtime_pedestrian_sec': sec,
+        'realtime_fetched_at': timezone.now().isoformat() if sec is not None else None,
+    })
 
 
 def get_nearby(waypoints, crosswalks=None):
