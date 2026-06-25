@@ -56,6 +56,28 @@ def get_weather_info(lat, lng):
         return None
 
 
+def get_address_from_coords(lat, lng):
+    """좌표를 실제 주소(행정동/도로명)로 변환"""
+    API_KEY = os.getenv('KAKAO_REST_API_KEY')
+    try:
+        response = requests.get(
+            'https://dapi.kakao.com/v2/local/geo/coord2address.json',
+            headers={'Authorization': f'KakaoAK {API_KEY}'},
+            params={'x': lng, 'y': lat},
+            timeout=3,
+        )
+        docs = response.json().get('documents', [])
+        if not docs:
+            return None
+        doc = docs[0]
+        road = doc.get('road_address')
+        if road and road.get('address_name'):
+            return road['address_name']
+        return doc.get('address', {}).get('address_name')
+    except Exception:
+        return None
+
+
 def search_kakao_places(query, lat=None, lng=None, radius=1000, size=5):
     """카카오 키워드 장소 검색"""
     API_KEY = os.getenv('KAKAO_REST_API_KEY')
@@ -161,13 +183,13 @@ def extract_location_from_message(message):
         r'(.+?)(?:근처|주변|인근|가까운)',
         r'(.+?)(?:에서|에|의)',
     ]
-    deictic_words = ['거기', '여기', '저기', '이곳']
+    # 지시어("여기서") 또는 위치 키워드 자체("근처에")가 장소명으로 잘못 추출되는 것을 방지
+    non_place_words = ['거기', '여기', '저기', '이곳', '근처', '주변', '인근', '가까운']
     for pattern in patterns:
         match = re.search(pattern, message)
         if match:
             place = match.group(1).strip()
-            # 너무 짧거나 "여기서"처럼 현재 위치를 가리키는 지시어는 장소명이 아님
-            if len(place) >= 2 and not any(d in place for d in deictic_words):
+            if len(place) >= 2 and not any(d in place for d in non_place_words):
                 return place
     return None
 
@@ -285,12 +307,18 @@ def chat(request):
                     facility_context += "\n"
 
     # ── 5. 시스템 프롬프트 구성 ──
-    location_status = (
-        "현재 사용자의 위치 정보가 이미 확인되어 있습니다. 위치 공유 여부나 검색 반경을 다시 묻지 말고, "
-        "바로 주변 시설을 안내해주세요."
-        if user_lat and user_lng else
-        "현재 사용자의 위치 정보가 없습니다. 위치 공유를 요청하거나 구체적인 장소명을 물어봐주세요."
-    )
+    if user_lat and user_lng:
+        current_address = get_address_from_coords(float(user_lat), float(user_lng))
+        location_status = (
+            f"현재 사용자의 위치는 '{current_address}' 입니다." if current_address
+            else "현재 사용자의 위치 정보가 이미 확인되어 있습니다."
+        )
+        location_status += (
+            " 위치 공유 여부나 검색 반경을 다시 묻지 말고 바로 주변 시설을 안내해주세요. "
+            "사용자가 현재 위치(주소)를 물으면 위 주소를 그대로 알려주세요."
+        )
+    else:
+        location_status = "현재 사용자의 위치 정보가 없습니다. 위치 공유를 요청하거나 구체적인 장소명을 물어봐주세요."
     no_result_guide = (
         "\n\n검색을 시도했지만 주변에서 결과를 찾지 못했습니다. 위치를 다시 묻지 말고, "
         "주변에 해당 시설이 없다는 점을 사용자에게 명확히 알려주세요."
