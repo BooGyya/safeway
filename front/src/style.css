@@ -1,0 +1,38 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap');
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Poppins', 'Noto Sans KR', sans-serif;
+  background-color: #f5f5f5;
+  font-size: var(--base-font-size, 16px);
+}
+
+main {
+  min-height: calc(100vh - 60px);
+}
+
+:root {
+  --mobile: 768px;
+  --tablet: 1024px;
+  --header-height: 60px;
+  --base-font-size: 16px;
+  --primary: #2eb872;
+  --primary-dark: #259a60;
+  --primary-light: #e6f7ee;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 3px;
+}
