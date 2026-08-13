@@ -50,11 +50,11 @@
 
 <table>
   <tr>
-    <td align="center" width="50%">
+    <td align="center" width="320">
       <a href="https://github.com/So-yeon-Jeon">
-        <img src="https://github.com/So-yeon-Jeon.png" width="120" alt="전소연 프로필" />
+        <img src="https://github.com/So-yeon-Jeon.png" width="80" alt="전소연 프로필" />
       </a>
-      <h3>전소연</h3>
+      <br/><b>전소연</b><br/>
       <img src="https://img.shields.io/badge/Backend-092E20?style=flat-square&logo=django&logoColor=white" alt="Backend" />
       <p>
         <a href="https://github.com/So-yeon-Jeon">
@@ -62,11 +62,11 @@
         </a>
       </p>
     </td>
-    <td align="center" width="50%">
+    <td align="center" width="320">
       <a href="https://github.com/BooGyya">
-        <img src="https://github.com/BooGyya.png" width="120" alt="김보경 프로필" />
+        <img src="https://github.com/BooGyya.png" width="80" alt="김보경 프로필" />
       </a>
-      <h3>김보경</h3>
+      <br/><b>김보경</b><br/>
       <img src="https://img.shields.io/badge/Frontend-4FC08D?style=flat-square&logo=vuedotjs&logoColor=white" alt="Frontend" />
       <p>
         <a href="https://github.com/BooGyya">
@@ -181,7 +181,7 @@
 
 <img src="docs/images/signup.gif" alt="회원가입" width="800" />
 
-<img src="docs/images/login.png" alt="로그인" width="800" />
+<img src="docs/images/login.gif" alt="로그인" width="800" />
 
 ### 길찾기 — 도보 경로 추천 (메인 기능)
 
@@ -194,6 +194,12 @@
 보행 중 발견한 위험 구간을 카테고리(위험/장애물/파손/공사 등)와 위치 정보로 제보하고, 좋아요·댓글·팔로우로 소통합니다.
 
 <img src="docs/images/community.gif" alt="불편신고함 게시판" width="800" />
+
+### 안심도우미 (AI 챗봇)
+
+현재 위치를 연동한 자연어 대화로 주변 시설과 경로를 안내받을 수 있습니다. 대화 내역은 히스토리 탭에 저장됩니다.
+
+<img src="docs/images/chatbot.gif" alt="AI 챗봇" width="800" />
 
 ### 마이페이지
 
